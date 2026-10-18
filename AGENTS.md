@@ -56,6 +56,22 @@ the board shows it, not when it compiles.
    Never give edit instructions based on what a file "should" contain.
 6. **No git chores performed by agents.** The owner commits, tags, and
    releases; agents never do.
+7. **Issue reports from the owner are ground truth. Never second-guess
+   the human.** When the owner reports a problem — an error message, a
+   broken build, unexpected IDE behavior — the protocol is:
+   - **Reproduce their symptom first**: their file, their command,
+     their environment. Never start from a hypothesis about what they
+     "probably" did, and never branch off into an unrelated area the
+     report did not mention.
+   - **A report the agent cannot reproduce is a datum about the
+     agent's blind spot, not an error by the owner.** If results
+     differ, say so as a puzzle — "these two facts conflict, here is
+     the experiment that separates them" — never as a rebuttal
+     ("that shouldn't happen", "you shouldn't have needed X").
+   - **Reproduction before explanation, explanation before fixes.** No
+     verdict until the reported symptom has been observed.
+   - **Owner corrections are applied immediately**: a corrected file
+     name, command, or context becomes the working premise at once.
 
 ## Board-safety constraints (the test board is the same UNO R4 WiFi)
 
@@ -86,6 +102,9 @@ the board shows it, not when it compiles.
   `compile_error!`, `wifi` the default, `usb` opt-in.
 - The README's quick example is `cargo check`-verified by the owner before
   every release.
+- Each slice's binary lands with its *Testing on hardware* README
+  subsection in the same commit — build command, wiring, observable,
+  verified status. The board proves the slice; the README records it.
 - Unit tests follow given-when-then: name tests
   `given_<setup>_when_<action>_then_<expectation>` and comment the body
   with `// given` / `// when` / `// then` phases.

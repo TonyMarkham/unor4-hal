@@ -12,6 +12,12 @@ mod output_open_drain;
 mod pin;
 mod pins;
 
+// `pub(crate)`: the golden-table test (`src/tests/pins.rs`) reads the
+// compiled pin map; it is not part of the public API. Host-only —
+// firmware never needs it.
+#[cfg(test)]
+pub(crate) use pins::PORT_PINS;
+
 // ---------------------------------------------------------------------------------------------- //
 
 pub use alternate::Alternate;

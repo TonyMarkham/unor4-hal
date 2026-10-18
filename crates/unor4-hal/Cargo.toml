@@ -9,3 +9,11 @@ description        = "Independent HAL for the Arduino UNO R4 (Renesas RA4M1)"
 cortex-m           = { workspace = true }
 embedded-hal       = { workspace = true }
 ra4m1              = { workspace = true }
+
+[features]
+# Board pin maps (HalSpec §3): exactly one must be selected. `wifi` is
+# the default so plain `cargo doc`/docs.rs shows the board this project
+# uses. Both-at-once and neither are compile errors (see src/lib.rs).
+default = ["wifi"]
+minima  = []
+wifi    = []

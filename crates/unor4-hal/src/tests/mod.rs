@@ -3,3 +3,4 @@
 
 mod clock;
 mod delay;
+mod pins;

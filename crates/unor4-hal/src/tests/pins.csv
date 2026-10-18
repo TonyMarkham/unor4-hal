@@ -1,0 +1,53 @@
+# Golden pin table (HalSpec §7.2) — the cross-check copy of both boards'
+# header-pin maps, transcribed from the Arduino core's board tables
+# (cross-check data only, HalSpec §1 — never copied code):
+#
+#   arduino/ArduinoCore-renesas @ 6546df0 (2023-11-02)
+#     variants/MINIMA/variant.cpp     g_pin_cfg entries 0-19
+#     variants/UNOWIFIR4/variant.cpp  g_pin_cfg entries 0-19
+#
+# The unit test in src/tests/pins.rs proves this table equals the map
+# compiled into the crate. An edit to either side alone must fail here.
+#
+# Columns: board,name,port-pin   (port-pin = P<port><2-digit pin index>)
+board,name,port-pin
+wifi,d0,P301
+wifi,d1,P302
+wifi,d2,P104
+wifi,d3,P105
+wifi,d4,P106
+wifi,d5,P107
+wifi,d6,P111
+wifi,d7,P112
+wifi,d8,P304
+wifi,d9,P303
+wifi,d10,P103
+wifi,d11,P411
+wifi,d12,P410
+wifi,d13,P102
+wifi,a0,P014
+wifi,a1,P000
+wifi,a2,P001
+wifi,a3,P002
+wifi,a4,P101
+wifi,a5,P100
+minima,d0,P301
+minima,d1,P302
+minima,d2,P105
+minima,d3,P104
+minima,d4,P103
+minima,d5,P102
+minima,d6,P106
+minima,d7,P107
+minima,d8,P304
+minima,d9,P303
+minima,d10,P112
+minima,d11,P109
+minima,d12,P110
+minima,d13,P111
+minima,a0,P014
+minima,a1,P000
+minima,a2,P001
+minima,a3,P002
+minima,a4,P101
+minima,a5,P100

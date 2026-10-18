@@ -3,8 +3,17 @@ name         = "test-firmware"
 version      = { workspace = true }
 edition      = { workspace = true }
 
+[features]
+# Forward the library's board map (HalSpec §3): the lib's default
+# features stay off here so exactly one map lands in each image.
+#   wifi image:   cargo build --release
+#   minima image: cargo build --release --no-default-features --features minima
+default = ["wifi"]
+minima  = ["unor4-hal/minima"]
+wifi    = ["unor4-hal/wifi"]
+
 [dependencies]
-unor4-hal    = { workspace = true }
+unor4-hal    = { workspace = true, default-features = false }
 embedded-hal = { workspace = true }
 cortex-m-rt  = { workspace = true }
 panic-halt   = { workspace = true }
