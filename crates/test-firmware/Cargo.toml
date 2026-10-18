@@ -1,0 +1,10 @@
+[package]
+name         = "test-firmware"
+version      = { workspace = true }
+edition      = { workspace = true }
+
+[dependencies]
+unor4-hal    = { workspace = true }
+embedded-hal = { workspace = true }
+cortex-m-rt  = { workspace = true }
+panic-halt   = { workspace = true }

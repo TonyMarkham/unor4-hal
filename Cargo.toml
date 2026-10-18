@@ -1,0 +1,28 @@
+[workspace]
+members            = [
+    "crates/unor4-hal",
+    "crates/test-firmware",
+]
+default-members    = ["crates/unor4-hal"]
+resolver           = "3"
+
+[workspace.package]
+version            = "0.1.0"
+edition            = "2024"
+license            = "MIT"
+
+[workspace.dependencies]
+cortex-m           = { version = "0.7.9" }
+cortex-m-rt        = { version = "0.7.7", features = ["set-vtor"] }
+critical-section   = { version = "1.2.0" }
+embedded-hal       = { version = "1.0.0" }
+panic-halt         = { version = "1.0.0" }
+ra4m1              = { version = "0.2.0" }
+
+unor4-hal = { path = "crates/unor4-hal" }
+
+[profile.release]
+opt-level          = 3    # speed matters on a 48 MHz chip
+lto                = true # smaller + faster firmware
+codegen-units      = 1    # more optimization, slower build — fine here
+debug              = true # keeps cargo size / backtraces readable

@@ -1,0 +1,11 @@
+[package]
+name               = "unor4-hal"
+version            = { workspace = true }
+edition            = { workspace = true }
+license            = "MIT OR Apache-2.0"
+description        = "Independent HAL for the Arduino UNO R4 (Renesas RA4M1)"
+
+[dependencies]
+cortex-m           = { workspace = true }
+embedded-hal       = { workspace = true }
+ra4m1              = { workspace = true }
