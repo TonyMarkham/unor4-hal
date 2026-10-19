@@ -94,9 +94,7 @@ impl<const PORT: char, const PIN: u8, MODE> Pin<PORT, PIN, MODE> {
     }
 
     /// Assigns the pin to a peripheral function; `psel` comes from the
-    /// manual's peripheral-select table (the UART/PWM drivers pass it).
-    /// Unused until the UART driver lands (Slice 3).
-    #[allow(dead_code)]
+    /// manual's peripheral-select table (the UART driver passes it).
     pub(crate) fn into_alternate(self, psel: u8) -> Pin<PORT, PIN, Alternate> {
         // PSEL first, while PMR is still 0; then enable peripheral mode.
         modify_pfs(

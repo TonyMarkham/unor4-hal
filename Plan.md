@@ -12,7 +12,7 @@ unor4-hal/
 ├── Cargo.toml              # workspace root: members, profiles, workspace deps
 ├── crates/
 │   ├── unor4-hal/          # the library (this repo's product)
-│   └── test-firmware/      # flashable binaries — one per slice, kept forever
+│   └── test-firmware/      # per-slice source programs — built and flashed locally, never stored
 └── AGENTS.md, HalSpec.md, Limitations.md, Plan.md
 ```
 
@@ -34,7 +34,7 @@ unor4-hal/
 | 0 | Scaffold | — | CI green on an empty workspace |
 | 1 | Clock + GPIO + delay | M0 | LED blinks |
 | 2 | Input GPIO, both pin maps | M0 | Button lights LED |
-| 3 | UART SCI2 polling | M1 | `tick` lines on the adapter |
+| 3 | UART SCI2 polling | M1 | `tick` lines on the bridge monitor |
 | 4 | UART SCI9 | M1.5 | `tick` lines in the USB monitor, no adapter |
 | 5 | Interrupts + IRQ UART | M2 | Echo while LED keeps steady rhythm |
 | 6 | UART SCI1 (AT channel) | M2 | `AT` → `OK` from the ESP32-S3 |
@@ -78,8 +78,9 @@ core tables, and the binary works with both feature builds.
 + host unit tests. Binary: `slice03_sci2.rs` — boot banner + `tick N` at
 1 Hz on D0/D1.
 
-**Observable:** `tick N` lines stream in the USB-UART adapter's monitor
-(wiring: course repo, Serial.md Step 7.1).
+**Observable:** `tick N` lines stream in the bridge monitor — a classic
+UNO running the relay sketch `arduino/sketches/slice03-adapter`, wired
+D0<->D1 crossed to the R4 (README slice 3).
 **Done when:** baud unit tests pass on the host and the board prints for
 10 minutes without garbage or a hang.
 
@@ -167,8 +168,10 @@ cycle verified byte-exact.
 2. **Nothing ships from the library without its binary proving it.**
    `unor4-hal` modules land in the same commit as the `test-firmware`
    binary that demonstrates them.
-3. **Binaries are forever.** Deleting a slice binary deletes evidence and a
-   regression test.
+3. **Slice source programs are forever.** Never delete a slice's
+   `src/bin/*.rs` — every earlier firmware keeps compiling forever and is
+   the regression suite. The built `.bin` image is a local build artifact
+   (`*.bin` is gitignored) — regenerate it from source any time.
 4. **Hardware facts get cited** (manual section) or **get marked unverified
    until a slice proves them** (OQ-1…OQ-6 all close this way).
 5. **The course repo stays the consumer.** At slice 3 the course's Serial.md

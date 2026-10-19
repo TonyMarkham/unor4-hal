@@ -9,13 +9,6 @@ use embedded_hal::delay::DelayNs;
 /// test in `src/tests/delay.rs` pins this bound.
 pub(crate) const MAX_RUN: u32 = 1 << 24;
 
-/// Converts a duration to cycles, rounding up — a delay is *at least* the
-/// requested duration.
-#[inline]
-pub(crate) fn cycles_for(amount: u64, clock_hz: u32, per_second: u64) -> u64 {
-    (amount * clock_hz as u64).div_ceil(per_second)
-}
-
 /// Blocking delay provider.
 pub struct Delay {
     syst: SYST,
@@ -67,4 +60,11 @@ impl DelayNs for Delay {
     fn delay_ms(&mut self, ms: u32) {
         self.wait_cycles(cycles_for(ms as u64, self.sysclk_hz, 1_000));
     }
+}
+
+/// Converts a duration to cycles, rounding up — a delay is *at least* the
+/// requested duration.
+#[inline]
+pub(crate) fn cycles_for(amount: u64, clock_hz: u32, per_second: u64) -> u64 {
+    (amount * clock_hz as u64).div_ceil(per_second)
 }

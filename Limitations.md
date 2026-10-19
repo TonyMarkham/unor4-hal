@@ -70,9 +70,12 @@ phone line 3. The monitor you've been using listens at the USB plug — phone
 lines 1 and 2. The bytes physically have no path between them.
 
 This is not a Rust failure. A C++ sketch writing to the same pins (`Serial2`)
-is equally silent. The fix in Part 7 is a USB-UART adapter clipped onto D0/D1
-— a $5-ish part that converts those header pins into its own USB port. The
-longer-term fix (monitor with no adapter) needs shortcoming #2 or #3 solved.
+is equally silent. The fix in Part 7 puts a USB-UART bridge on D0/D1 —
+anything that turns those header pins into their own USB port. Verified
+cheapest option: a classic UNO running a 6-line relay sketch
+(`arduino/sketches/slice03-adapter`), no purchase needed; a ~$5 USB-UART
+adapter works identically. The longer-term fix (monitor with no extra
+board) needs shortcoming #2 or #3 solved.
 
 ### 2. The Rust library implements 1 of the chip's ~6 UART engines — and it's the least convenient one
 
@@ -96,7 +99,7 @@ it drives it with **tinyusb**, a widely used open-source C USB stack). The
 Rust side has generic USB stacks (`usb-device` + `usbd-serial`), but the
 chip-specific driver piece that connects a stack to this chip's USB hardware
 has, as far as I could find, never been published. So from Rust today there
-is no way to talk to the monitor — the adapter in Part 7 is the workaround.
+is no way to talk to the monitor — the bridge in Part 7 is the workaround.
 
 Writing that missing driver is a real (multi-evening) project, made smaller
 by the fact that tinyusb provably runs on this chip — it could be linked
@@ -129,7 +132,7 @@ LED.
 
 | Option | What it buys | Effort |
 |---|---|---|
-| USB-UART adapter on D0/D1 (**Part 7 — works now**) | A serial window into Rust firmware | trivial (buy part, 3 wires) |
+| USB-UART bridge on D0/D1 (**Part 7 — works now**; classic UNO + relay sketch, or a ~$5 adapter) | A serial window into Rust firmware | trivial (spare UNO or adapter, 3 wires) |
 | Extend the HAL with SCI9 | Monitor output with no adapter | an evening or two |
 | Extend the HAL with SCI1 | Unlocks the WiFi lesson (mission-critical) | similar to SCI9 |
 | Link tinyusb via the C ABI | Native USB CDC from Rust (the C++ `Serial` experience) | multi-evening project |

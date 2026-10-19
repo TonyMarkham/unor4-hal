@@ -87,6 +87,10 @@ the board shows it, not when it compiles.
 
 ## Library conventions (this repo's equivalent of the course's doc rules)
 
+- **One type per file.** Every `pub` struct/enum lives in its own file,
+  with the free functions and constants that exist only for it; `mod.rs`
+  carries the module docs and re-exports (`gpio/`, `uart/` show the
+  pattern). No multi-type grab-bag modules.
 - `#![deny(missing_docs)]` — every public item documented; both board pin
   maps shown in feature-gated pin docs (`d2: WiFi=P104, Minima=P105` style).
 - Examples compile in CI; doc examples marked `no_run` where they need

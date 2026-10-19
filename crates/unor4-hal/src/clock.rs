@@ -34,12 +34,13 @@ impl Clocks {
     pub fn sysclk(&self) -> u32 {
         self.sysclk
     }
-    /// Peripheral clock A — upstream clock for the SCI units.
+    /// Peripheral clock A — the SCI bit-rate generator's base clock
+    /// (see `uart/mod.rs` for the vendor cross-check).
     #[inline]
     pub fn pclka(&self) -> u32 {
         self.pclka
     }
-    /// Peripheral clock B — the SCI baud-rate reference.
+    /// Peripheral clock B.
     #[inline]
     pub fn pclkb(&self) -> u32 {
         self.pclkb

@@ -4,9 +4,10 @@
 #![no_std] // don't link the standard library — no OS down here
 #![no_main] // no standard main(); we provide our own entry point
 
+use unor4_hal::Peripherals;
+
 use embedded_hal::delay::DelayNs;
 use panic_halt as _; // crash handler: halt the core on panic
-use unor4_hal::Peripherals;
 
 // `#[entry]` becomes the function the vector table points to.
 // It can never return (`-> !`) — there is nothing to return *to*.

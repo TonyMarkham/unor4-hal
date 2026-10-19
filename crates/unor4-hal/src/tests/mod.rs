@@ -4,3 +4,4 @@
 mod clock;
 mod delay;
 mod pins;
+mod uart;

@@ -1,0 +1,152 @@
+//! The SCI channel type: one claim, polling TX/RX.
+
+use crate::{
+    clock::Clocks,
+    gpio::{Input, Pin},
+    uart::{BaudParams, ReadError, ReadResult, calc_baud},
+};
+
+/// `PRCR` key + PRC1 write-enable (module-stop registers are PRC1-
+/// protected, like the clock registers of Slice 1).
+const PRCR_UNLOCK_PRC1: u16 = 0xA502;
+/// `PRCR` relock (permission bits cleared).
+const PRCR_LOCK: u16 = 0xA500;
+
+/// `PSEL` for TXD2/RXD2 on P302/P301 (see the parent module's docs for
+/// the verification chain).
+const PSEL_SCI2: u8 = 0x04;
+
+/// One claimed SCI channel, running in polling mode (8N1).
+///
+/// Holds the PAC's peripheral marker, so a second `Uart` for the same
+/// channel is impossible through the normal ownership path.
+pub struct Uart {
+    _sci: ra4m1::SCI2,
+}
+
+impl Uart {
+    /// Claims SCI2 on the header's **D1 = TX** (P302), **D0 = RX**
+    /// (P301) — the same physical pins on both board maps.
+    ///
+    /// Consumes the PAC's `SCI2` (exactly-once claim, like everything
+    /// `Peripherals::take` hands out), the two pins in their
+    /// reset-default input state, and the resolved clocks (the baud
+    /// reference is PCLKA).
+    ///
+    /// # Panics
+    /// If `baud` cannot be reached within 3% of PCLKA.
+    pub fn sci2(
+        sci: ra4m1::SCI2,
+        tx: Pin<'3', 2, Input>,
+        rx: Pin<'3', 1, Input>,
+        baud: u32,
+        clocks: &Clocks,
+    ) -> Self {
+        release_module_stop_sci2();
+        // Drive TxD to idle-high BEFORE the pin enters peripheral mode:
+        // SPTR is writable while TE = 0, and SPB2IO = 1 / SPB2DT = 1
+        // makes the SCI output a static high on TxD, so there is no
+        // window where the receiver can latch a false start bit.
+        sci.sptr.write(|w| w.spb2io()._1().spb2dt()._1());
+        let _tx = tx.into_alternate(PSEL_SCI2);
+        let _rx = rx.into_alternate(PSEL_SCI2);
+
+        let params: BaudParams =
+            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
+
+        // SCI initialization in asynchronous mode (manual, SCI chapter):
+        // SCR = 0 first — TE/RE off, all interrupt sources off...
+        sci.scr().write(|w| unsafe { w.bits(0) });
+        // ...clear any latched flags (FSP's open does the same)...
+        sci.ssr().write(|w| unsafe { w.bits(0) });
+
+        // SCMR: force the value FSP writes on every open (CHR1=1 → 8-bit
+        // with SMR.CHR=0). The SVD claims CHR1 resets to 1; FSP rewriting
+        // it defensively suggests the die's real reset may differ.
+        sci.scmr.write(|w| unsafe { w.bits(0xF2) });
+
+        // SMR: async (CM = 0), 8 data bits (CHR = 0 with the SCMR.CHR1
+        // reset value 1), no parity (PE = 0), 1 stop bit (STPS = 0),
+        // base clock = PCLKA / 4^cks. Only CKS[1:0] is nonzero.
+        sci.smr().write(|w| unsafe { w.bits(params.cks) });
+        // SEMR: only BGDM/ABCS from the calculation. NFEN = 0 (noise
+        // filter off), BRME = 0 (no bit-rate modulation), ABCSE = 0,
+        // RXDESEL = 0 (start bit detected as a low level).
+        sci.semr.write(|w| unsafe {
+            let mut bits: u8 = 0;
+            if params.bgdm {
+                bits |= 1 << 6;
+            }
+            if params.abcs {
+                bits |= 1 << 4;
+            }
+            w.bits(bits)
+        });
+        // BRR: the N of the equation — written while TE/RE are off.
+        sci.brr.write(|w| unsafe { w.bits(params.brr) });
+        // SCR: internal baud clock (CKE = 00), transmitter and receiver
+        // on, all interrupt sources off (polling).
+        sci.scr().write(|w| w.cke()._00().te()._1().re()._1());
+
+        Uart { _sci: sci }
+    }
+
+    /// Sends one byte, blocking until the data register is free.
+    pub fn write_byte(&mut self, byte: u8) {
+        // TDRE: 1 = TDR empty (resets to 1, so the first byte never waits).
+        while !self._sci.ssr().read().tdre().bit_is_set() {}
+        // Writing TDR clears TDRE back to 0.
+        self._sci.tdr.write(|w| unsafe { w.bits(byte) });
+    }
+
+    /// Sends a slice, then waits for the shift register to drain (TEND)
+    /// — the line is guaranteed idle when this returns.
+    pub fn write_bytes(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.write_byte(byte);
+        }
+        while !self._sci.ssr().read().tend().bit_is_set() {}
+    }
+
+    /// Reads one received byte, non-blocking.
+    pub fn read_byte(&mut self) -> ReadResult<u8> {
+        let ssr = self._sci.ssr().read();
+        // Error flags first: while ORER is set, RDRF never rises again.
+        if ssr.orer().bit_is_set() {
+            self.clear_receiver_errors();
+            return Err(ReadError::Overrun);
+        }
+        if ssr.fer().bit_is_set() {
+            self.clear_receiver_errors();
+            return Err(ReadError::Framing);
+        }
+        if ssr.per().bit_is_set() {
+            self.clear_receiver_errors();
+            return Err(ReadError::Parity);
+        }
+        if !ssr.rdrf().bit_is_set() {
+            return Err(ReadError::Empty);
+        }
+        // Reading RDR clears RDRF (non-FIFO SCI receive flow).
+        Ok(self._sci.rdr.read().bits())
+    }
+
+    /// Writes 0 to PER/FER/ORER; the other bits are written back as read
+    /// (the same read-modify-write FSP's receive-error path does).
+    fn clear_receiver_errors(&mut self) {
+        let ssr = self._sci.ssr().read().bits();
+        self._sci.ssr().write(|w| unsafe { w.bits(ssr & !0x38) });
+    }
+}
+
+/// Takes SCI2 out of module stop (`MSTPCRB.MSTPB29 = 0`). The MSTP
+/// registers are PRC1-protected, so the write window unlocks and relocks
+/// `PRCR`. Addresses from the SVD: `MSTP` block at `0x4004_7000`,
+/// `MSTPCRB` first at offset `0x00`.
+fn release_module_stop_sci2() {
+    let system = unsafe { &*ra4m1::SYSTEM::PTR };
+    let mstp = unsafe { &*ra4m1::MSTP::PTR };
+    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
+    mstp.mstpcrb.modify(|_, w| w.mstpb29().clear_bit());
+    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
+}

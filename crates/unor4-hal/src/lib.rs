@@ -15,6 +15,7 @@
 // std; the firmware itself does not.
 #![cfg_attr(not(test), no_std)]
 #![deny(missing_docs)]
+#![allow(clippy::module_inception)]
 
 // HalSpec §3: the two pin maps are mutually exclusive. "Both at once"
 // is always a mistake — there is no board with both mappings.
@@ -30,6 +31,7 @@ pub mod clock;
 pub mod delay;
 pub mod gpio;
 pub mod peripherals;
+pub mod uart;
 
 #[cfg(test)]
 mod tests;

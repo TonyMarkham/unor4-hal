@@ -10,6 +10,8 @@ pub struct Peripherals {
     pub pins: gpio::Pins,
     /// SysTick-based blocking delay.
     pub delay: delay::Delay,
+    /// SCI2, unconfigured (the UART driver claims it exactly once).
+    pub sci2: ra4m1::SCI2,
 }
 
 impl Peripherals {
@@ -37,6 +39,7 @@ impl Peripherals {
             clocks,
             pins,
             delay,
+            sci2: device.SCI2,
         })
     }
 }
