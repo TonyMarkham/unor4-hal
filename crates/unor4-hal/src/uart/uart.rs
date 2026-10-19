@@ -3,7 +3,7 @@
 use crate::{
     clock::Clocks,
     gpio::{Input, Pin},
-    uart::{BaudParams, ReadError, ReadResult, calc_baud},
+    uart::{BaudParams, ReadError, ReadResult, SciChannel, calc_baud},
 };
 
 /// `PRCR` key + PRC1 write-enable (module-stop registers are PRC1-
@@ -16,15 +16,21 @@ const PRCR_LOCK: u16 = 0xA500;
 /// the verification chain).
 const PSEL_SCI2: u8 = 0x04;
 
+/// `PSEL` for TXD9/RXD9 on P109/P110 (see the parent module's docs for
+/// the verification chain).
+const PSEL_SCI9: u8 = 0x05;
+
 /// One claimed SCI channel, running in polling mode (8N1).
 ///
-/// Holds the PAC's peripheral marker, so a second `Uart` for the same
-/// channel is impossible through the normal ownership path.
-pub struct Uart {
-    _sci: ra4m1::SCI2,
+/// `S` is the PAC's peripheral marker for the engine — SCI2 (the
+/// default, so the bare `Uart` name still means the header UART) or
+/// SCI9. The marker is held, not copied, so a second `Uart` for the
+/// same channel is impossible through the normal ownership path.
+pub struct Uart<S = ra4m1::SCI2> {
+    _sci: S,
 }
 
-impl Uart {
+impl Uart<ra4m1::SCI2> {
     /// Claims SCI2 on the header's **D1 = TX** (P302), **D0 = RX**
     /// (P301) — the same physical pins on both board maps.
     ///
@@ -43,16 +49,63 @@ impl Uart {
         clocks: &Clocks,
     ) -> Self {
         release_module_stop_sci2();
-        // Drive TxD to idle-high BEFORE the pin enters peripheral mode:
+        let params: BaudParams =
+            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
+        Self::init(sci, tx, rx, PSEL_SCI2, params)
+    }
+}
+
+impl Uart<ra4m1::SCI9> {
+    /// Claims SCI9 on the board's internal monitor line: **TX = P109**,
+    /// **RX = P110**. On the WiFi board these are not header pins — they
+    /// run through the level translator to the ESP32-S3, whose bridge
+    /// firmware forwards the line to the board's own USB monitor port
+    /// (Limitations.md, "phone line 2"). On the Minima the same chip
+    /// pins *are* header D11/D12 — pass `pins.d11`/`pins.d12`.
+    ///
+    /// Consumes the PAC's `SCI9` (exactly-once claim, like everything
+    /// `Peripherals::take` hands out), the two pins in their
+    /// reset-default input state, and the resolved clocks (the baud
+    /// reference is PCLKA).
+    ///
+    /// # Panics
+    /// If `baud` cannot be reached within 3% of PCLKA.
+    pub fn sci9(
+        sci: ra4m1::SCI9,
+        tx: Pin<'1', 9, Input>,
+        rx: Pin<'1', 10, Input>,
+        baud: u32,
+        clocks: &Clocks,
+    ) -> Self {
+        release_module_stop_sci9();
+        let params: BaudParams =
+            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
+        Self::init(sci, tx, rx, PSEL_SCI9, params)
+    }
+}
+
+impl<S> Uart<S>
+where
+    S: SciChannel,
+{
+    /// Shared bring-up. Every SCI engine has the same non-FIFO register
+    /// block (the PAC aliases `sci9` to `sci2`), so the sequence Slice 3
+    /// proved on hardware applies verbatim — only the module-stop bit,
+    /// the pins, and `PSEL` differ per engine.
+    fn init<const TX_PORT: char, const TX_PIN: u8, const RX_PORT: char, const RX_PIN: u8>(
+        sci: S,
+        tx: Pin<TX_PORT, TX_PIN, Input>,
+        rx: Pin<RX_PORT, RX_PIN, Input>,
+        psel: u8,
+        params: BaudParams,
+    ) -> Self {
+        // Drive Txd to idle-high BEFORE the pin enters peripheral mode:
         // SPTR is writable while TE = 0, and SPB2IO = 1 / SPB2DT = 1
         // makes the SCI output a static high on TxD, so there is no
         // window where the receiver can latch a false start bit.
         sci.sptr.write(|w| w.spb2io()._1().spb2dt()._1());
-        let _tx = tx.into_alternate(PSEL_SCI2);
-        let _rx = rx.into_alternate(PSEL_SCI2);
-
-        let params: BaudParams =
-            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
+        let _tx = tx.into_alternate(psel);
+        let _rx = rx.into_alternate(psel);
 
         // SCI initialization in asynchronous mode (manual, SCI chapter):
         // SCR = 0 first — TE/RE off, all interrupt sources off...
@@ -148,5 +201,16 @@ fn release_module_stop_sci2() {
     let mstp = unsafe { &*ra4m1::MSTP::PTR };
     system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
     mstp.mstpcrb.modify(|_, w| w.mstpb29().clear_bit());
+    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
+}
+
+/// Takes SCI9 out of module stop (`MSTPCRB.MSTPB22 = 0`) — same `MSTP`
+/// block and `PRCR.PRC1` unlock as SCI2; the SVD names bit 22 "Serial
+/// Communication Interface 9 Module Stop".
+fn release_module_stop_sci9() {
+    let system = unsafe { &*ra4m1::SYSTEM::PTR };
+    let mstp = unsafe { &*ra4m1::MSTP::PTR };
+    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
+    mstp.mstpcrb.modify(|_, w| w.mstpb22().clear_bit());
     system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
 }

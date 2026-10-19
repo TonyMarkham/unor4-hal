@@ -12,6 +12,20 @@ pub struct Peripherals {
     pub delay: delay::Delay,
     /// SCI2, unconfigured (the UART driver claims it exactly once).
     pub sci2: ra4m1::SCI2,
+    /// SCI9, unconfigured (the UART driver claims it exactly once) —
+    /// the monitor path: P109/P110, wired to the ESP32-S3 bridge.
+    pub sci9: ra4m1::SCI9,
+    /// P109 — SCI9 TX, wired through the level translator to the
+    /// ESP32-S3. Not a header pin on the WiFi board (on the Minima the
+    /// same chip pin is header D11, already claimed by [`gpio::Pins`]
+    /// as `d11` — hence this field is WiFi-only).
+    #[cfg(feature = "wifi")]
+    pub sci9_tx: gpio::Pin<'1', 9, gpio::Input>,
+    /// P110 — SCI9 RX, wired back from the ESP32-S3. Not a header pin
+    /// on the WiFi board (on the Minima the same chip pin is header
+    /// D12, already claimed by [`gpio::Pins`] as `d12`).
+    #[cfg(feature = "wifi")]
+    pub sci9_rx: gpio::Pin<'1', 10, gpio::Input>,
 }
 
 impl Peripherals {
@@ -40,6 +54,11 @@ impl Peripherals {
             pins,
             delay,
             sci2: device.SCI2,
+            sci9: device.SCI9,
+            #[cfg(feature = "wifi")]
+            sci9_tx: gpio::Pin::new(),
+            #[cfg(feature = "wifi")]
+            sci9_rx: gpio::Pin::new(),
         })
     }
 }

@@ -25,10 +25,11 @@ observed through a classic-UNO serial bridge. Slice 2 (input GPIO, both
 board pin maps) is implemented and host-tested; its hardware run is
 pending. Slice 3 (UART SCI2 polling, baud calculator host-tested) is
 implemented and verified on the bridge (boot banner + tick stream); its
-10-minute soak run is pending.
+10-minute soak run is pending. Slice 4 (UART SCI9 — the monitor path, no
+adapter) is implemented and host-tested; its hardware run is pending.
 
-Planned next: UART SCI9 (the monitor path with no adapter), interrupt
-support (ICU/IELSR), PWM, ADC, data flash, and USB CDC-ACM.
+Planned next: interrupt support (ICU/IELSR), PWM, ADC, data flash, and
+USB CDC-ACM.
 
 ## Install
 
@@ -425,7 +426,7 @@ Two rules for every upload, from the course's verified procedure:
 > Then plug in (or reset) the R4 and watch the monitor.
 >
 > - **Pass:** one garbage byte at plug-in (expected — see below), then
->   a boot banner and `tick N` once per second:
+    >   a boot banner and `tick N` once per second:
 >
 >   ```text
 >   �unor4-hal slice 03 - SCI2 polling, 115200 8N1
@@ -453,6 +454,79 @@ Two rules for every upload, from the course's verified procedure:
 > **Verified:** host-verified (9 baud-calculator tests, both board-map
 > builds, `text` = 4,084 bytes); boot banner + ticks observed on the
 > bridge (2026-10-18); 10-minute soak run pending.
+
+> ### Slice 4 — UART SCI9, the monitor path (`slice04_sci9`)
+>
+> > [!IMPORTANT]
+> > **Test setup** (no adapter, no second board): SCI9 talks on the
+> > board-internal **P109 (TX) / P110 (RX)** pair, which runs through
+> > the level translator to the ESP32-S3. The bridge firmware forwards
+> > that line to the board's own USB port — the same port `$PORT` from
+> > the Preamble. Monitor at **115200 8N1**.
+> >
+> > **Never open this port at 1200 or 2400 baud.** Those are the
+> > bridge's magic rates: 1200 resets the RA4M1, 2400 forces it into
+> > DFU boot mode (observed in the bridge firmware's USB line-coding
+> > handler).
+>
+> **Build and convert** (from `crates/test-firmware/`):
+>
+> > [!IMPORTANT]
+> >
+> > Run every command in this section from `crates/test-firmware/`
+>
+> Compiles the SCI9 polling firmware (release, size-optimized):
+>
+> ```powershell
+> cargo build --release --bin slice04_sci9
+> ```
+>
+> Converts the ELF into the raw binary the uploader consumes:
+>
+> ```pwsh
+> cargo objcopy --release --bin slice04_sci9 -- -O binary slice04_sci9.bin
+> ```
+>
+> **Flash** (never-cold rule applies; `$PORT` from the Preamble):
+>
+> ```powershell
+> arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice04_sci9.bin
+> ```
+>
+> **Evaluate:** open the **R4's own port** (the bridge CDC port — the
+> same `$PORT` the upload used) at 115200:
+>
+> ```powershell
+> arduino-cli monitor -p $PORT --config baudrate=115200
+> ```
+>
+> Then reset the board and watch the monitor.
+>
+> - **Pass:** a boot banner and `tick N` once per second, with no
+    >   adapter and no second board connected:
+>
+>   ```text
+>   unor4-hal slice 04 - SCI9 polling, 115200 8N1
+>   tick 0
+>   tick 1
+>   tick 2
+>   ```
+>
+> - **Expected, not a fail:** bridge/ESP32 diagnostic noise around
+    >   reset — the bridge shares this port with its own logs. Garbage
+    >   *during* the tick stream = baud mismatch (the bridge reconfigures
+    >   its UART to the monitor's baud, so suspect the monitor config
+    >   first).
+> - **Fail — nothing at all:** confirm the WiFi image is flashed and
+    >   the monitor is on the R4's port, not a second board.
+>
+> **This line is also the upload path.** The bootloader talks to the
+> bridge over the same SCI9 pins, so the run is only complete once
+> flashing is proven intact: after the tick stream, re-flash this same
+> binary (double-tap reset, upload again). If the upload succeeds, the
+> shared wire survived — record it under **Verified** below.
+>
+> **Verified:** pending hardware run.
 
 ## License
 

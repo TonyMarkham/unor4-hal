@@ -72,6 +72,28 @@ the board shows it, not when it compiles.
      verdict until the reported symptom has been observed.
    - **Owner corrections are applied immediately**: a corrected file
      name, command, or context becomes the working premise at once.
+8. **Substitution requires permission.** Whenever the agent determines
+   that it wants to supersede, delay, or modify the owner's request for
+   its own reasons — caution, risk judgment, disagreement, quality
+   concerns — the following all apply:
+   - The agent must **STOP and request permission for that specific
+     substitution before acting on it.** The owner's request is the
+     default course of action; the agent's alternative is not. Stating
+     the concern in the same reply as the completed or withheld action
+     does not satisfy this rule.
+   - **The substitution must be labeled as one.** The request must say,
+     in effect, "I am not executing your request as given unless you
+     approve X." Disguising a substitution as a clarifying question, a
+     menu of options, or a status report does not satisfy this rule.
+   - **Permission must be explicit and affirmative.** Silence, a
+     dismissed prompt, frustration, or any reply that is not an
+     explicit approval of the substitution means the original request
+     is executed as given, immediately. Implicit consent is never
+     consent; acting on an inference of consent is a violation.
+   - **One request.** The agent may ask permission for a substitution
+     once per instruction. If it is not granted, the agent executes the
+     original request as given. Repeatedly withholding execution while
+     re-raising the concern is a violation.
 
 ## Board-safety constraints (the test board is the same UNO R4 WiFi)
 
