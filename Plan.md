@@ -123,6 +123,14 @@ displayed via the slice 4 monitor path.
 **Done when:** OQ from the spec "can the RA4M1 drive the AT channel" is
 answered with hardware evidence. This unblocks the course's WiFi roadmap
 item — the mission's hard dependency.
+— Done: verified on WiFi 2026-10-19. 9/9 witnessed `AT` rounds answered
+exactly `OK\x0d\x0a` (one complete 6-round run, one partial 3-round
+capture; the partial run's own `total=24` report covers its unwitnessed
+rounds), `ov=0 er=0`; the run is re-triggerable via
+the bench gate line (`arduino/sketches/slice06-gate` cycles R3 D3 → R4
+D3, the firmware re-arms on the rising edge). Reproduction commands,
+transcript, and failure triage: README slice 6. Verification chain:
+`Research/slice-06-research.md`. Recorded as HalSpec OQ-7.
 
 ### Slice 7 — PWM → the LED breathes
 

@@ -20,6 +20,15 @@ pub(crate) const PSEL_SCI2: u8 = 0x04;
 /// the verification chain).
 pub(crate) const PSEL_SCI9: u8 = 0x05;
 
+/// `PSEL` for TXD1/RXD1 on P501/P502 — RA4M1 hardware manual
+/// (R01UH0887EJ0100) §19 "I/O Ports", Table 19.13 "Register settings for
+/// input/output pin function (PORT5)": `TXD1/MOSI1/SDA1` on P501 and
+/// `RXD1/MISO1/SCL1` on P502 both sit at `PSEL[4:0] = 00101b`. Same
+/// odd-class value as SCI9 (Slice 4 hardware-proven); FSP's
+/// `IOPORT_PERIPHERAL_SCI1_3_5_7_9 = 0x05` and the Arduino core's
+/// `SCI_ODD_CFG` decode agree (see `Research/slice-06-research.md`).
+pub(crate) const PSEL_SCI1: u8 = 0x05;
+
 /// One claimed SCI channel, running in polling mode (8N1).
 ///
 /// `S` is the PAC's peripheral marker for the engine — SCI2 (the
@@ -84,12 +93,44 @@ impl Uart<ra4m1::SCI9> {
     }
 }
 
+impl Uart<ra4m1::SCI1> {
+    /// Claims SCI1 on the board's internal WiFi AT line: **TX = P501**,
+    /// **RX = P502**, wired board-internal to the ESP32-S3 (Limitations.md,
+    /// the phone-line table). Not header pins on either board: on the
+    /// Minima the same chip pins sit on the SWD connector (Arduino core
+    /// `variants/MINIMA/variant.cpp`: "TX on SWD connector" / "RX on SWD
+    /// connector"). The ESP32-S3 side runs the bridge firmware's AT
+    /// server (SudoMaker/chAT) at 115200 8N1 — the stock peer for this
+    /// line, and the whole point of the channel.
+    ///
+    /// Consumes the PAC's `SCI1` (exactly-once claim, like everything
+    /// `Peripherals::take` hands out), the two pins in their
+    /// reset-default input state, and the resolved clocks (the baud
+    /// reference is PCLKA).
+    ///
+    /// # Panics
+    /// If `baud` cannot be reached within 3% of PCLKA.
+    pub fn sci1(
+        sci: ra4m1::SCI1,
+        tx: Pin<'5', 1, Input>,
+        rx: Pin<'5', 2, Input>,
+        baud: u32,
+        clocks: &Clocks,
+    ) -> Self {
+        release_module_stop_sci1();
+        let params: BaudParams =
+            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
+        Self::init(sci, tx, rx, PSEL_SCI1, params)
+    }
+}
+
 impl<S> Uart<S>
 where
     S: SciChannel,
 {
-    /// Shared bring-up. Every SCI engine has the same non-FIFO register
-    /// block (the PAC aliases `sci9` to `sci2`), so the sequence Slice 3
+    /// Shared bring-up. Every SCI engine presents the same non-FIFO
+    /// register view to this driver (see `SciChannel::block` for the
+    /// SCI1 layout-identity evidence), so the sequence Slice 3
     /// proved on hardware applies verbatim — only the module-stop bit,
     /// the pins, and `PSEL` differ per engine.
     fn init<const TX_PORT: char, const TX_PIN: u8, const RX_PORT: char, const RX_PIN: u8>(
@@ -106,10 +147,11 @@ where
 
     /// Sends one byte, blocking until the data register is free.
     pub fn write_byte(&mut self, byte: u8) {
+        let sci = self._sci.block();
         // TDRE: 1 = TDR empty (resets to 1, so the first byte never waits).
-        while !self._sci.ssr().read().tdre().bit_is_set() {}
+        while !sci.ssr().read().tdre().bit_is_set() {}
         // Writing TDR clears TDRE back to 0.
-        self._sci.tdr.write(|w| unsafe { w.bits(byte) });
+        sci.tdr.write(|w| unsafe { w.bits(byte) });
     }
 
     /// Sends a slice, then waits for the shift register to drain (TEND)
@@ -118,12 +160,13 @@ where
         for &byte in bytes {
             self.write_byte(byte);
         }
-        while !self._sci.ssr().read().tend().bit_is_set() {}
+        while !self._sci.block().ssr().read().tend().bit_is_set() {}
     }
 
     /// Reads one received byte, non-blocking.
     pub fn read_byte(&mut self) -> ReadResult<u8> {
-        let ssr = self._sci.ssr().read();
+        let sci = self._sci.block();
+        let ssr = sci.ssr().read();
         // Error flags first: while ORER is set, RDRF never rises again.
         if ssr.orer().bit_is_set() {
             self.clear_receiver_errors();
@@ -141,14 +184,15 @@ where
             return Err(ReadError::Empty);
         }
         // Reading RDR clears RDRF (non-FIFO SCI receive flow).
-        Ok(self._sci.rdr.read().bits())
+        Ok(sci.rdr.read().bits())
     }
 
     /// Writes 0 to PER/FER/ORER; the other bits are written back as read
     /// (the same read-modify-write FSP's receive-error path does).
     fn clear_receiver_errors(&mut self) {
-        let ssr = self._sci.ssr().read().bits();
-        self._sci.ssr().write(|w| unsafe { w.bits(ssr & !0x38) });
+        let sci = self._sci.block();
+        let ssr = sci.ssr().read().bits();
+        sci.ssr().write(|w| unsafe { w.bits(ssr & !0x38) });
     }
 }
 
@@ -175,6 +219,19 @@ pub(crate) fn release_module_stop_sci9() {
     system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
 }
 
+/// Takes SCI1 out of module stop (`MSTPCRB.MSTPB30 = 0`) — same `MSTP`
+/// block and `PRCR.PRC1` unlock as SCI2. Manual §10.2.3 "Module Stop
+/// Control Register B (MSTPCRB)" names bit 30 "Serial Communication
+/// Interface 1 Module Stop" (Target module: SCI1); the SVD field
+/// `mstpb30` matches.
+pub(crate) fn release_module_stop_sci1() {
+    let system = unsafe { &*ra4m1::SYSTEM::PTR };
+    let mstp = unsafe { &*ra4m1::MSTP::PTR };
+    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
+    mstp.mstpcrb.modify(|_, w| w.mstpb30().clear_bit());
+    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
+}
+
 /// Shared SCI bring-up for both driver modes: pin muxing, format
 /// registers, and the baud generator — with the transmitter and
 /// receiver on and every interrupt source off. The register sequence is
@@ -194,6 +251,9 @@ pub(crate) fn init_sci<
     psel: u8,
     params: BaudParams,
 ) {
+    // One shared register view for every engine (see `SciChannel::block`
+    // for the SCI1 layout-identity evidence).
+    let sci = sci.block();
     // Drive Txd to idle-high BEFORE the pin enters peripheral mode:
     // SPTR is writable while TE = 0, and SPB2IO = 1 / SPB2DT = 1
     // makes the SCI output a static high on TxD, so there is no

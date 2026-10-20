@@ -32,8 +32,8 @@ use crate::{
     gpio::{Input, Pin},
     intc::{Ielsr, register_handler},
     uart::{
-        BaudParams, PSEL_SCI2, PSEL_SCI9, ReadError, Ring, SciChannel, calc_baud, init_sci,
-        release_module_stop_sci2, release_module_stop_sci9,
+        BaudParams, PSEL_SCI1, PSEL_SCI2, PSEL_SCI9, ReadError, Ring, SciChannel, calc_baud,
+        init_sci, release_module_stop_sci1, release_module_stop_sci2, release_module_stop_sci9,
     },
 };
 
@@ -152,6 +152,36 @@ impl<const RX: usize, const TX: usize> UartIrq<ra4m1::SCI9, RX, TX> {
             baud,
             clocks,
             release_module_stop_sci9,
+        );
+    }
+}
+
+impl<const RX: usize, const TX: usize> UartIrq<ra4m1::SCI1, RX, TX> {
+    /// Claims SCI1 on the board's internal WiFi AT line: **TX = P501**,
+    /// **RX = P502** (see [`Uart::sci1`](super::Uart::sci1) for the
+    /// wiring and the ESP32-S3 AT server this line speaks to). Consumes
+    /// the PAC's `SCI1` and the two pins.
+    ///
+    /// # Panics
+    /// If `baud` cannot be reached within 3% of PCLKA, if SCI1 was
+    /// already attached in IRQ mode, or if fewer than three IELSR
+    /// slots are free.
+    pub fn sci1(
+        &'static self,
+        sci: ra4m1::SCI1,
+        tx: Pin<'5', 1, Input>,
+        rx: Pin<'5', 2, Input>,
+        baud: u32,
+        clocks: &Clocks,
+    ) {
+        self.attach(
+            sci,
+            tx,
+            rx,
+            PSEL_SCI1,
+            baud,
+            clocks,
+            release_module_stop_sci1,
         );
     }
 }

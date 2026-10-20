@@ -50,3 +50,8 @@ required-features = ["uart-irq"]
 name = "slice05_s9"
 path = "src/bin/slice05_s9.rs"
 required-features = ["uart-irq"]
+
+[[bin]]
+name = "slice06_at"
+path = "src/bin/slice06_at.rs"
+required-features = ["uart-irq"]

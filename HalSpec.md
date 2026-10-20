@@ -313,6 +313,17 @@ M2 is the mission-critical one; M4 is the largest single item (see OQ-3).
   correctly through the bridge. Repeated uploads over that same USB path
   succeeded. Unpaced USB bursts are not reliable in this setup; continuous
   4 KiB UART bursts are independently verified through the R3/SCI2 rig.
+- **OQ-7** Can the RA4M1 drive the AT channel — the M2/M6 question the
+  WiFi roadmap depends on. — Verified on UNO R4 WiFi in Slice 6
+  (2026-10-19): SCI1 in IRQ mode (P501/P502, `PSEL[4:0] = 00101b` per
+  manual §19 Table 19.13, module stop released via `MSTPCRB.MSTPB30`,
+  manual §10.2.3) sent `AT\r\n` at 115200 8N1 to the ESP32-S3's AT
+  server (stock bridge firmware, SudoMaker/chAT — behavioral reference)
+  and received exactly `OK\r\n` on 9/9 witnessed rounds (one complete
+  6-round run, one partial 3-round capture), with zero overruns and zero
+  receive errors. Uploads over the shared USB
+  path succeeded before and after. Evidence and reproduction: README
+  slice 6; verification chain: `Research/slice-06-research.md`.
 
 ## 11. Implementer's source list
 

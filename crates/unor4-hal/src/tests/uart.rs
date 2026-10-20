@@ -1,9 +1,9 @@
 //! Host tests for the baud calculator (`uart::calc_baud`) — pure
-//! arithmetic, no hardware. The SCI bit-rate generator runs from PCLKA
-//! (48 MHz after Slice 1's clock init); the tests exercise the real
-//! clock plus generic clocks for the CKS divider logic.
+//! arithmetic, no hardware — and for the SCI engine table
+//! (`SciChannel`): identities, register-block addresses, and IELSR
+//! event numbers, all facts re-derivable from the SVD without hardware.
 
-use crate::uart::{BaudError, BaudParams, calc_baud};
+use crate::uart::{BaudError, BaudParams, SciChannel, calc_baud};
 
 #[test]
 fn given_pclka_48mhz_when_calc_9600_then_base_row_brr_155() {
@@ -172,4 +172,48 @@ fn given_params_when_coefficient_then_it_matches_the_manuals_equation() {
     assert_eq!(bgdm.coefficient(), 16);
     assert_eq!(bgdm_abcs.coefficient(), 8);
     assert_eq!(BaudParams { cks: 3, ..base }.coefficient(), 32 * 64);
+}
+
+/// Channel id, register-block address, and the four IELSR event
+/// numbers of one engine.
+fn channel_facts<E: SciChannel>() -> (u8, usize, [u8; 4]) {
+    (
+        E::CHANNEL_ID,
+        E::PTR as usize,
+        [
+            E::EVENT_RXI as u8,
+            E::EVENT_TXI as u8,
+            E::EVENT_TEI as u8,
+            E::EVENT_ERI as u8,
+        ],
+    )
+}
+
+#[test]
+fn given_all_sci_engines_when_channel_facts_are_read_then_ids_pointers_and_events_are_distinct() {
+    // given: the three engines the HAL instantiates — the IRQ driver
+    // keys its attach-once bitmask off CHANNEL_ID, and links each
+    // engine's events into IELSR slots; SCI1's block address comes
+    // from the SVD (`0x4007_0020`)
+    // when: each engine's channel facts are read
+    let (id2, ptr2, ev2) = channel_facts::<ra4m1::SCI2>();
+    let (id9, ptr9, ev9) = channel_facts::<ra4m1::SCI9>();
+    let (id1, ptr1, ev1) = channel_facts::<ra4m1::SCI1>();
+
+    // then: channel ids are distinct (a duplicate would let a second
+    // IRQ attach silently steal the first engine's rings); the three
+    // register-block addresses differ (SCI2 = 0x4007_0040, SCI9 =
+    // 0x4007_0120, SCI1 = 0x4007_0020); and all twelve event numbers
+    // are distinct (a duplicate would route two engines into one
+    // interrupt handler)
+    let mut ids = [id2, id9, id1];
+    ids.sort_unstable();
+    assert_eq!(ids, [0, 1, 2]);
+    assert_ne!(ptr2, ptr9);
+    assert_ne!(ptr2, ptr1);
+    assert_ne!(ptr9, ptr1);
+    let mut events = [ev2, ev9, ev1].concat();
+    events.sort_unstable();
+    events.dedup();
+    assert_eq!(events.len(), 12);
 }

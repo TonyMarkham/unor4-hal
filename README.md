@@ -31,8 +31,10 @@ is pending. Slice 4's upload-path re-verification is pending. Slice 5
 (interrupts: ICU/IELSR event table, dispatch, IRQ-mode UART) is
 hardware-verified on WiFi: simultaneous SCI2/SCI9 uppercase echo,
 eight continuous 4 KiB SCI2 bursts, and an uninterrupted heartbeat.
-The IRQ-enabled host suite contains 32 tests. Minima is build/host-tested,
-not hardware-tested.
+Slice 6 (UART SCI1, the WiFi AT channel) is hardware-verified on WiFi:
+the ESP32-S3's AT server answered `OK` to 9/9 witnessed `AT` rounds with
+`ov=0 er=0` (README, slice 6). The IRQ-enabled host suite contains
+33 tests. Minima is build/host-tested, not hardware-tested.
 
 Planned next: UART SCI1 (the WiFi AT channel), PWM, ADC, data flash, and
 USB CDC-ACM.
@@ -702,6 +704,81 @@ Two rules for every upload, from the course's verified procedure:
 > input/banner/heartbeat text on the first displayed line. That capture
 > confirms ongoing heartbeat reports, not uppercase RX echo or D2-gate
 > timing. The standalone button interaction remains unverified.
+
+> ### Slice 6 — the WiFi AT channel (`slice06_at`)
+>
+> Proves the mission-critical claim: the RA4M1 drives **SCI1**
+> (P501 = TX, P502 = RX, board-internal to the ESP32-S3) and the
+> ESP32-S3's AT server answers. The firmware sends `AT\r\n` once every
+> 5 seconds for 30 seconds per run and relays every received byte to
+> the SCI9 monitor path, with non-printables shown as `\xHH`.
+>
+> **Hardware facts** (full chain in `Research/slice-06-research.md`):
+> P501/P502 mux to TXD1/RXD1 at `PSEL[4:0] = 00101b` (manual
+> R01UH0887EJ0100 §19, Table 19.13); `MSTPCRB.MSTPB30` releases SCI1
+> (manual §10.2.3); the stock bridge firmware implements its AT server
+> via SudoMaker/chAT at 115200 8N1 (`uno-r4-wifi-usb-bridge`,
+> `UNOR4USBBridge.ino` — behavioral reference).
+>
+> **Test setup:** no adapter, no wiring beyond the bench. The R4's
+> monitor is `$PORT` at **115200 8N1** (`arduino-cli monitor` asserts
+> DTR, which the bridge's CDC requires for output — a raw `SerialPort`
+> reader must set `DtrEnable` or it will capture nothing). The run is
+> gated by the bench line R3 D3 → R4 D3: `arduino/sketches/slice06-gate`
+> (on the R3) holds the line high 30 s, low 50 s, cycling; the R4
+> firmware runs one test per falling edge and re-arms on the rising
+> edge, so one flash serves many runs. Upload the R4 first (its D0/D1
+> stay inputs; the R3's upload shares its own D0/D1 with the cross-wire).
+>
+> **Build and convert** (from `crates/test-firmware/`):
+>
+> ```powershell
+> cargo build --release --bin slice06_at --features uart-irq
+> cargo objcopy --release --bin slice06_at --features uart-irq -- -O binary slice06_at.bin
+> ```
+>
+> **Flash** (never-cold rule applies; `$PORT` = the R4):
+>
+> ```powershell
+> arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice06_at.bin
+> arduino-cli compile --fqbn arduino:avr:uno ..\..\arduino\sketches\slice06-gate
+> arduino-cli upload -p $uartPort --fqbn arduino:avr:uno ..\..\arduino\sketches\slice06-gate
+> ```
+>
+> **Evaluate:** open the R4's port at 115200 during a high phase (dots
+> mark the waiting firmware); the next falling edge prints:
+>
+> ```text
+> gate open
+> giving the ESP32-S3 AT server 2 s to settle...
+> round 0: sending AT\r\n -> OK\x0d\x0a
+> round 0 done: 4 bytes
+> ...
+> round 5: sending AT\r\n -> OK\x0d\x0a
+> round 5 done: 4 bytes
+> done: total=24 ov=0 er=0
+> waiting for the gate to rise to re-arm
+> ```
+>
+> The ESP32-S3 answers exactly `OK\r\n` — no command echo, no banner.
+>
+> **Verified on 2026-10-19:** R4 `COM3`, R3 `COM4`, Arduino renesas_uno
+> core 1.6.0. One complete run (6/6 rounds) and one partial capture
+> (rounds 3–5, 3/3) — **9/9 witnessed rounds** answered exactly
+> `OK\x0d\x0a`, `ov=0 er=0` throughout; the partial run's own report
+> (`total=24`) shows its unwitnessed rounds also received 4 bytes each.
+> Uploads succeeded before and after the runs over the same
+> USB path. WiFi map only — P501/P502 exist on the Minima on its SWD
+> connector, untested there. Size (WiFi, `uart-irq`): `slice06_at`
+> text=14888, data=0, bss=668.
+>
+> **Fail — silence after `gate open`:** the AT server runs from the
+> ESP32-S3's boot; power-cycle the whole board once (fresh ESP32 boot)
+> before investigating further, then check `er=` (nonzero suggests a
+> baud/format mismatch) and the PSEL value.
+>
+> **Fail — dots but no gate open:** the R3 side is not driving D3 low;
+> verify the gate sketch is on the R3 and the D3↔D3 wire is seated.
 
 ## License
 

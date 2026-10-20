@@ -183,11 +183,40 @@ evidence.
    resolved-OQ note, following the OQ-6 format); Plan.md slice-6 "Done
    when" gets its evidence line. CHANGELOG entry only at release.
 
-## Risks / what to do if `AT` gets silence
+## Research session 4 (2026-10-19) — hardware result: the board answers `OK`
 
-- **chAT's exact response to bare `AT`** (echo? leading `\r\n`?) is
-  unverified until the board answers — that is precisely the slice's
-  hardware evidence, and the raw-hex printout settles it either way.
+Implemented per the work items above and run on the bench (R4 `COM3`,
+R3 `COM4`):
+
+- **Result:** the ESP32-S3's AT server answered exactly `OK\x0d\x0a`
+  (4 bytes) to every `AT\r\n` — **9/9 witnessed rounds** (one complete
+  6-round run, one partial 3-round capture; the partial run's own
+  `total=24` report covers its unwitnessed rounds),
+  `overflowed() = 0`, `errored() = 0`. The slice's observable is met;
+  HalSpec OQ-7 records the answer.
+- **Two run-infrastructure lessons, both fixed in the artifacts:**
+  1. The ESP32 bridge's CDC gates output on **DTR** — a raw host
+     `SerialPort` reader must set `DtrEnable = $true`; five silent
+     captures were the reader, not the board. `arduino-cli monitor`
+     asserts DTR and is unaffected.
+  2. A one-shot gate lost a run to an unattached reader. The binary now
+     **re-arms** (runs on every falling edge of the bench D3 line, waits
+     for it to rise between runs) and `arduino/sketches/slice06-gate`
+     cycles the line (30 s high / 50 s low), so one flash serves many
+     unattended runs. The firmware prints its banner and liveness dots
+     *before* the gate, so a silent boot is distinguishable from a
+     never-opened gate.
+- **State of the files at the end of the session:** library (SCI1
+  channel impl, `PSEL_SCI1`, module-stop, polling + IRQ constructors,
+  `Peripherals` fields), `slice06_at.rs`, and the gate sketch are
+  hardware-verified; README slice-6 section, HalSpec OQ-7, and this
+  file record the evidence. `just test` green (4 check + 4 test
+  configurations; 33 tests with `uart-irq`). Commit is the owner's.
+
+- **Original risk — chAT's response format to bare `AT`:** resolved by
+  observation: exactly `OK\r\n`, no command echo, no banner. The
+  contingency plan below is retained for the record.
+
 - If nothing arrives: the counters discriminate — `errored()` > 0
   suggests a baud/format mismatch; zero events at all points at PSEL/
   muxing (L1) or the AT server not running on the ESP32. Differential

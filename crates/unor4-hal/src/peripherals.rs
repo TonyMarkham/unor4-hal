@@ -15,6 +15,20 @@ pub struct Peripherals {
     /// SCI9, unconfigured (the UART driver claims it exactly once) —
     /// the monitor path: P109/P110, wired to the ESP32-S3 bridge.
     pub sci9: ra4m1::SCI9,
+    /// SCI1, unconfigured (the UART driver claims it exactly once) —
+    /// the WiFi AT channel: P501/P502, wired to the ESP32-S3's AT
+    /// server (bridge firmware, SudoMaker/chAT, 115200 8N1).
+    pub sci1: ra4m1::SCI1,
+    /// P501 — SCI1 TX, wired to the ESP32-S3. Not a header pin on the
+    /// WiFi board (board-internal to the ESP32-S3); on the Minima the
+    /// same chip pin sits on the SWD connector (Arduino core
+    /// `variants/MINIMA/variant.cpp`: "(23) TX on SWD connector"), so
+    /// unlike the SCI9 pins this field needs no board feature gate.
+    pub sci1_tx: gpio::Pin<'5', 1, gpio::Input>,
+    /// P502 — SCI1 RX, wired back from the ESP32-S3. Not a header pin
+    /// on the WiFi board; on the Minima the same chip pin sits on the
+    /// SWD connector ("(24) RX on SWD connector").
+    pub sci1_rx: gpio::Pin<'5', 2, gpio::Input>,
     /// P109 — SCI9 TX, wired through the level translator to the
     /// ESP32-S3. Not a header pin on the WiFi board (on the Minima the
     /// same chip pin is header D11, already claimed by [`gpio::Pins`]
@@ -62,6 +76,9 @@ impl Peripherals {
             delay,
             sci2: device.SCI2,
             sci9: device.SCI9,
+            sci1: device.SCI1,
+            sci1_tx: gpio::Pin::new(),
+            sci1_rx: gpio::Pin::new(),
             #[cfg(feature = "wifi")]
             sci9_tx: gpio::Pin::new(),
             #[cfg(feature = "wifi")]
