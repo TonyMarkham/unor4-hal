@@ -779,6 +779,96 @@ Two rules for every upload, from the course's verified procedure:
 >
 > **Fail — dots but no gate open:** the R3 side is not driving D3 low;
 > verify the gate sketch is on the R3 and the D3↔D3 wire is seated.
+>
+> ### Slice 7 — PWM, the LED breathes (`slice07_breathe`)
+>
+> Proves the GPT PWM driver: saw-wave PWM on **D6** at exactly 1 kHz
+> (PCLKD/1, `GTPR = 47999`, 48 000 duty steps) with a sine duty profile,
+> while the D13 heartbeat keeps ticking. The measurement is instrumented:
+> D6 is wired to the R3's **D2 (INT0)** and `arduino/sketches/
+> slice07-measure` measures duty and period edge-by-edge — no LED, no
+> eyeballing. Per gate round (R3 D3 → R4 D3, the slice 6 pattern) the
+> firmware runs a 1 s settle, a duty staircase (0/25/50/75/100%, 2 s per
+> step — the two extremes exercise `GTUDDTYC.OADTY` and the
+> never-matching-compare mechanisms), then sine breathing (2.048 s
+> cycle) until the next gate edge.
+>
+> **Hardware facts** (full chain in `Research/slice-07-research.md`):
+> WiFi D6 = P111 → `GTIOC3A` on GPT163 at `PSEL[4:0] = 00011b` (manual
+> §19 Tables 19.6/19.7/19.10/19.12, cross-checked entry-for-entry
+> against the Arduino core's `pinmux.inc`); `MSTPCRD.MSTPD6` releases
+> GPT162–167 (manual §10, p.175); the count clock is PCLKD = 48 MHz
+> (manual §22.1/§8 Table 8.2); saw period = `GTPR + 1` (§22.2.20); duty
+> 0%/100% via `GTUDDTYC.OADTY` / never-matching compare, because a
+> compare match at the cycle end loses to the cycle-end setting in
+> saw-wave mode (Table 22.5 Note 2, §22.3.6). The public trait is
+> `embedded-hal` 1.0 `SetDutyCycle` (HalSpec §6 amended — the 0.2
+> multi-channel `Pwm` trait does not exist in 1.0).
+>
+> **The full PWM surface (HalSpec §5.6):** all six header PWM pins are
+> addressable, named by header pin with the engine/pin/output fixed at
+> compile time — `Pwm::d3`, `d5`, `d6`, `d9`, `d10`, `d11` (D9 shares
+> one constructor across both maps; the rest are per-map, like the pin
+> tables). The mapping table is locked by the golden constructor test
+> (`src/tests/pwm.rs`), which asserts every constructor's exact
+> signature against manual §19 Tables 19.6/19.7/19.10/19.12. Hardware
+> proof: WiFi D6 (GPT163) — the register recipe is common code, but the
+> other pin/engine pairs have no bench wires and are compile-checked
+> only. (D8 also carries `GTIOC7A` per Table 19.10 — outside the six
+> spec pins; one more constructor if ever wanted.)
+>
+> **Build and convert** (from `crates/test-firmware/`):
+>
+> ```powershell
+> cargo build --release --bin slice07_breathe
+> cargo objcopy --release --bin slice07_breathe -- -O binary slice07_breathe.bin
+> ```
+>
+> **Flash** (R4 first, then the R3 rig; never-cold rule applies;
+> `$PORT` = the R4, `$uartPort` = the R3):
+>
+> ```powershell
+> arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice07_breathe.bin
+> arduino-cli compile --fqbn arduino:avr:uno ..\..\arduino\sketches\slice07-measure
+> arduino-cli upload -p $uartPort --fqbn arduino:avr:uno ..\..\arduino\sketches\slice07-measure
+> ```
+>
+> **Evaluate:** open both ports at 115200. The R4 prints the staircase
+> steps and continuous `tick N` heartbeats; the R3 prints, per 10 s
+> window, twenty 500 ms duty samples (`H`/`L` = flat high/low — the
+> DC-line evidence for the 0%/100% steps) plus the aggregate. One
+> aligned round (R3 `W3` against the R4's second staircase):
+>
+> ```text
+> R4: step 0 duty=0 of 48000 ... step 4 duty=48000 of 48000
+> R3: 0 L L L 252 252 248 248 501 500 500 501 752 752 748 752 749 H H H
+> R3: W3 duty=500/1000 (min 244 max 756) period=1000us edges=6013
+> ```
+>
+> Reading: period exactly 1000 µs; 6013 edges = exactly the ~6 s of the
+> three edged steps; every commanded duty lands within ±1 tick of
+> 48 000 (±4 per-mille); the extremes are DC lines (no edges), which is
+> the OQ-P2 answer; breathing windows sweep 59→1000 per-mille
+> (their period mean reads 1007–1019 µs because the R3's ISR merges
+> edges when the pulse gaps at the sine extremes drop below the ISR
+> duration — a rig artifact, not a GPT defect).
+>
+> **Verified on 2026-10-19:** R4 `COM3`, R3 `COM4`, simultaneous
+> capture of one aligned round plus breathing windows; duty staircase
+> exact at 1 kHz, flat-line extremes confirmed, heartbeat continuous
+> (ticks 456–516 with no gap) through gate/staircase/breathing. Uploads
+> succeeded before and after. WiFi map verified; Minima image builds
+> (`gpt0b`/P106 path) but is hardware-untested — no Minima on the bench.
+> Size (WiFi): `slice07_breathe` text=12700, data=0, bss=4.
+>
+> **Fail — R3 windows show `period=1333us` and stale-looking samples:**
+> the R3 was reset mid-round (its first window after a serial open
+> inherits the R4's previous phase). The next aligned round is the
+> evidence — check `W3` onward.
+>
+> **Fail — no `H`/`L` and duty stuck near one value:** the D6→D2 wire
+> is off, or the R4 is not past its banner (check the R4 log for
+> `gate open`).
 
 ## License
 

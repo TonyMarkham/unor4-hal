@@ -134,12 +134,26 @@ transcript, and failure triage: README slice 6. Verification chain:
 
 ### Slice 7 — PWM → the LED breathes
 
-`pwm.rs`: GPT timer driver, `embedded-hal` `Pwm` traits, D6 first. Binary:
-`slice07_breathe.rs` — sine-table breathing on D6.
+`pwm.rs`: GPT timer driver, `embedded-hal` 1.0 `SetDutyCycle` (the 0.2
+`Pwm` trait does not exist in 1.0 — HalSpec §6 amended), all six header
+PWM pins (D3, D5, D6, D9, D10, D11 — surface-locked by the golden
+constructor test), D6 hardware-proven first. Binary:
+`slice07_breathe.rs` — sine-table breathing on D6. Measured, not
+eyeballed: D6 → R3 D2 (INT0), `arduino/sketches/slice07-measure` measures
+duty/period edge-by-edge (owner decision 2026-10-19: no LED).
 
-**Observable:** the LED on D6 visibly breathes (fade in/out ~2 s cycle).
+**Observable:** the R3 reports the duty staircase (0/25/50/75/100%,
+period exactly 1000 µs) and the sine breathing profile from the wire.
 **Done when:** duty resolution measured stable at 1 kHz+ with no flicker,
 and heartbeat + breathing run simultaneously (two GPT channels or GPT + SysTick).
+— Done: verified on WiFi 2026-10-19. Aligned round: every commanded duty
+within ±1 tick of 48 000 (±4 per-mille), period exactly 1000 µs, 0%/100%
+measured as DC lines (flat low/high, no edges), heartbeat ticks
+continuous through gate/staircase/breathing. All six pins addressable;
+hardware proof on WiFi D6, other pin/engine pairs compile-checked (no
+bench wires — noted in README slice 7). Reproduction commands,
+transcript, and triage: README slice 7. Verification chain:
+`Research/slice-07-research.md`. Recorded as HalSpec OQ-8.
 
 ### Slice 8 — ADC → the chip senses
 

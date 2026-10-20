@@ -32,6 +32,7 @@ pub mod delay;
 pub mod gpio;
 pub mod intc;
 pub mod peripherals;
+pub mod pwm;
 pub mod uart;
 
 #[cfg(test)]

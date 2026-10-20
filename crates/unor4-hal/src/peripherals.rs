@@ -19,6 +19,26 @@ pub struct Peripherals {
     /// the WiFi AT channel: P501/P502, wired to the ESP32-S3's AT
     /// server (bridge firmware, SudoMaker/chAT, 115200 8N1).
     pub sci1: ra4m1::SCI1,
+    /// GPT320 — GPT32 channel 0, unconfigured (the PWM driver claims it
+    /// exactly once). Header mappings: WiFi **D5** (P107 → GTIOC0A);
+    /// Minima **D6** (P106 → GTIOC0B).
+    pub gpt320: ra4m1::GPT320,
+    /// GPT321 — GPT32 channel 1, unconfigured (the PWM driver claims it
+    /// exactly once). Header mappings: WiFi **D3** (P105 → GTIOC1A);
+    /// Minima **D3** (P104 → GTIOC1B) and **D11** (P109 → GTIOC1A).
+    pub gpt321: ra4m1::GPT321,
+    /// GPT163 — GPT16 channel 3, unconfigured (the PWM driver claims it
+    /// exactly once). Header mappings: WiFi **D6** (P111 → GTIOC3A);
+    /// Minima **D10** (P112 → GTIOC3B).
+    pub gpt163: ra4m1::GPT163,
+    /// GPT166 — GPT16 channel 6, unconfigured (the PWM driver claims it
+    /// exactly once). Header mapping: WiFi **D11** (P411 → GTIOC6A);
+    /// no Minima header pin muxes here.
+    pub gpt166: ra4m1::GPT166,
+    /// GPT167 — GPT16 channel 7, unconfigured (the PWM driver claims it
+    /// exactly once). Header mapping: **D9** on both boards (P303 →
+    /// GTIOC7B).
+    pub gpt167: ra4m1::GPT167,
     /// P501 — SCI1 TX, wired to the ESP32-S3. Not a header pin on the
     /// WiFi board (board-internal to the ESP32-S3); on the Minima the
     /// same chip pin sits on the SWD connector (Arduino core
@@ -77,6 +97,11 @@ impl Peripherals {
             sci2: device.SCI2,
             sci9: device.SCI9,
             sci1: device.SCI1,
+            gpt320: device.GPT320,
+            gpt321: device.GPT321,
+            gpt163: device.GPT163,
+            gpt166: device.GPT166,
+            gpt167: device.GPT167,
             sci1_tx: gpio::Pin::new(),
             sci1_rx: gpio::Pin::new(),
             #[cfg(feature = "wifi")]

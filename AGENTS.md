@@ -165,6 +165,7 @@ UNO R3 (stimulus/controller), wired together as follows.
 - R3 D0 (TX) <--> R4 D1 (RX)
 - R3 D1 (RX) <--> R4 D0 (TX)
 - R3 D3      <--> R4 D3
+- R3 D2 (INT0) <--> R4 D6 (GPT PWM out, slice 7 measurement rig)
 - R3 GND     <--> R4 GND
 - Push Button 0 <--> R4 D2
 - Push Button 1 <--> R4 GND
@@ -209,6 +210,19 @@ R4's pins as inputs first (`test-slice05.ps1` shows the working order).
   with the free functions and constants that exist only for it; `mod.rs`
   carries the module docs and re-exports (`gpio/`, `uart/` show the
   pattern). No multi-type grab-bag modules.
+- **One aggregated `use` tree per file — for all crates, not just this
+  one.** Every path from the same root is one import: internal
+  (`crate::…`), workspace (`unor4_hal::…`), and external
+  (`embedded_hal::…`, `ra4m1::…` included) — e.g.
+  `use crate::{clock::Clocks, gpio::{Input, Pin}, pwm::Pwm};`, never a
+  separate `use` statement per item or per level. Held by convention and
+  review: rustfmt's `imports_granularity` is nightly-only, so CI cannot
+  enforce it.
+- **No glob imports.** `use foo::*;` is banned in all crates' code, test
+  or firmware: a glob hides which names a file actually depends on,
+  silently changes meaning when the source crate adds items, and can
+  defeat the exactly-once/`deny(missing_docs)` hygiene above. Name what
+  you use — explicitly or inside the aggregated tree.
 - `#![deny(missing_docs)]` — every public item documented; both board pin
   maps shown in feature-gated pin docs (`d2: WiFi=P104, Minima=P105` style).
 - Examples compile in CI; doc examples marked `no_run` where they need

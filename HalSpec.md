@@ -209,8 +209,18 @@ let n = serial.read(&mut buf)?;           // impl embedded-io Read (blocking)
 ### 5.6 PWM (`pwm.rs`)
 
 - GPT channel driver covering at least the header PWM pins (D3, D5, D6, D9,
-  D10, D11) with `embedded-hal` `Pwm` traits. `PwmD6`-equivalent API for the
+  D10, D11) with `embedded-hal` 1.0's `pwm::SetDutyCycle` (the
+  multi-channel `Pwm` trait is embedded-hal 0.2 legacy and does not exist
+  in 1.0 — §6 amended; Slice 7 finding). `PwmD6`-equivalent API for the
   roadmap item 3 breathing LED: period + duty in ticks, duty 0..=period.
+  — Slice 7: implemented for **all six header PWM pins** (D3, D5, D6,
+  D9, D10, D11 — per-map constructors named by header pin, engine/pin/
+  output fixed at compile time, surface-locked by the golden
+  constructor test in `src/tests/pwm.rs`), with the single-buffered
+  compare update and the `GTUDDTYC.OADTY` 0%/100% mechanism.
+  Hardware-proven on WiFi D6 (GPT163) — the driver's register recipe is
+  common code, so the other pin/engine pairs are compile-checked but
+  not board-run (no bench wires to them; noted in README slice 7).
 
 ### 5.7 ADC (`adc.rs`)
 
@@ -239,7 +249,7 @@ let n = serial.read(&mut buf)?;           // impl embedded-io Read (blocking)
 | GPIO    | digital In/Out | — | — | — |
 | UART    | — | serial Read/Write | Read/Write | ✔ |
 | USB CDC | — | — | Read/Write | ✔ |
-| PWM     | Pwm | — | — | — |
+| PWM     | pwm SetDutyCycle | — | — | — |
 | ADC     | adc OneShot | — | — | — |
 | Delay   | DelayNs | — | — | — |
 
@@ -324,6 +334,22 @@ M2 is the mission-critical one; M4 is the largest single item (see OQ-3).
   receive errors. Uploads over the shared USB
   path succeeded before and after. Evidence and reproduction: README
   slice 6; verification chain: `Research/slice-06-research.md`.
+- **OQ-8** GPT PWM duty mechanics — polarity, the 0%/100% extremes, and
+  the inherited GPT state after a bootloader handoff. — Verified on
+  UNO R4 WiFi in Slice 7 (2026-10-19), measured edge-by-edge by the R3
+  rig (`arduino/sketches/slice07-measure`): with
+  `GTIOR.GTIOx[4:0] = 0b0_10_01` (high at cycle end, low at compare
+  match) the high fraction is exactly the compare value over `GTPR + 1`
+  (25/50/75% measured at 250/500/750 per-mille ±1 tick of 48 000);
+  duty 0% is only reachable via `GTUDDTYC.OADTY` and 100% via a
+  never-matching compare — a compare match coinciding with the cycle
+  end loses to the cycle-end setting, exactly as Table 22.5 Note 2
+  predicts; both extremes measured as DC lines. The driver rewrites
+  every GPT register (counting `GTPR`'s buffer off via `GTBER.BD[1]`,
+  since `GTPBR` resets to `0xFFFF` and would otherwise stretch the
+  first period), so no bootloader-inherited state is trusted.
+  Evidence and reproduction: README slice 7; verification chain:
+  `Research/slice-07-research.md`.
 
 ## 11. Implementer's source list
 
