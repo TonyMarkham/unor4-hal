@@ -72,7 +72,7 @@ lines 1 and 2. The bytes physically have no path between them.
 This is not a Rust failure. A C++ sketch writing to the same pins (`Serial2`)
 is equally silent. The fix in Part 7 puts a USB-UART bridge on D0/D1 —
 anything that turns those header pins into their own USB port. Verified
-cheapest option: a classic UNO running a 6-line relay sketch
+cheapest option: an R3 running a 6-line relay sketch
 (`arduino/sketches/slice03-adapter`), no purchase needed; a ~$5 USB-UART
 adapter works identically. The longer-term fix (monitor with no extra
 board) needs shortcoming #2 or #3 solved.
@@ -116,13 +116,13 @@ step 9.
 
 ### 5. A documentation trap: the published docs show the *other* board's pin numbers
 
-The HAL supports both UNO R4 boards behind "feature flags": `uno-r4-minima`
-and `uno-r4-wifi`. The boards differ in which chip pin sits behind header
+The HAL supports both UNO R4 boards behind "feature flags": `minima`
+and `wifi`. The boards differ in which chip pin sits behind header
 holes D2–D7 and D10–D13. The automatically generated docs pages are built
 with the *Minima* feature — so if you read the HAL's documentation and the
 pin numbers look wrong, that's why.
 
-Your `Cargo.toml` enables `uno-r4-wifi` (a board-safety rule in the course
+Your `Cargo.toml` enables `wifi` (a board-safety rule in the course
 repo's AGENTS.md for exactly this reason), so your firmware uses the correct
 numbers — confirmed against the Arduino core's own pin table, line for line.
 Verified consequence: the Part 6 blinky (D13 = P102) drives the real onboard
@@ -132,7 +132,7 @@ LED.
 
 | Option | What it buys | Effort |
 |---|---|---|
-| USB-UART bridge on D0/D1 (**Part 7 — works now**; classic UNO + relay sketch, or a ~$5 adapter) | A serial window into Rust firmware | trivial (spare UNO or adapter, 3 wires) |
+| USB-UART bridge on D0/D1 (**Part 7 — works now**; R3 + relay sketch, or a ~$5 adapter) | A serial window into Rust firmware | trivial (spare R3 or adapter, 3 wires) |
 | Extend the HAL with SCI9 | Monitor output with no adapter | an evening or two |
 | Extend the HAL with SCI1 | Unlocks the WiFi lesson (mission-critical) | similar to SCI9 |
 | Link tinyusb via the C ABI | Native USB CDC from Rust (the C++ `Serial` experience) | multi-evening project |

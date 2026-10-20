@@ -138,9 +138,22 @@ src/
 - Implement IELSR event linking: an `Event` enum (per the hardware manual's
   ICU chapter), `link(event, irq)` with allocation tracking, and
   `#[cortex_m_rt::interrupt]` trampolines dispatching to registered
-  handlers.
-- Provide a `critical_section` implementation (the `critical-section` crate)
-  — the PAC and any shared state depend on it.
+  handlers. — Slice 5 implementation: the PAC's `rt` feature is unusable
+  (it binds `cortex-m-rt ^0.6`, conflicting with the workspace's 0.7), so
+  the HAL supplies its own 32-entry `__INTERRUPTS` table with built-in
+  dispatch and firmware builds cortex-m-rt with the `device` feature. The
+  NVIC provides enable/pending directly — the RA4M1 ICU has no IER/IPR
+  registers of its own (cross-checked against FSP's `bsp_irq.h`).
+  `Peripherals::take` disables inherited NVIC lines, clears their pending
+  bits, and removes bootloader ICU event routes before allocating slots.
+  Duplicate event links are rejected (manual R01UH0887EJ0100 §13.4.2).
+  Main explicitly calls unsafe `intc::enable_interrupts()` outside critical
+  sections after attaching drivers; slot enables preserve PRIMASK.
+- Provide a `critical_section` implementation (the `critical-section`
+  crate) — the PAC and any shared state depend on it. — Provided via
+  cortex-m's `critical-section-single-core` provider (PRIMASK), enabled
+  as a cargo feature on the existing dependency: audited upstream code
+  instead of a hand-rolled `unsafe impl`.
 - **Open question OQ-2:** exact IELSR/IRQ numbering table for the RA4M1 —
   transcribe from the hardware manual's ICU chapter into `intc.rs` as a
   const table with a unit test asserting uniqueness and bounds.
@@ -275,19 +288,35 @@ M2 is the mission-critical one; M4 is the largest single item (see OQ-3).
 
 - **OQ-1** USBFS clock source and init sequence (hardware manual).
 - **OQ-2** Full IELSR event/IRQ table for the RA4M1 (hardware manual, ICU
-  chapter).
+  chapter). — Resolved in Slice 5: the table is transcribed into
+  `src/intc/event.rs` (the `Event` enum), cross-checked entry-for-entry
+  against two independent transcriptions of the manual's ICU chapter
+  (the `ra-hal` crate's `InterruptEvent` and a community table). The
+  SCI2/SCI9 RXI/TXI/ERI entries are exercised on hardware by slice 5's
+  run; the 0xB7–0xDA range stays untranscribed (only 0xDB is attested)
+  until a driver needs it.
 - **OQ-3** Existing RA4M1 `usb-device` adapters — search; if none, decide
   build vs. tinyusb fallback.
 - **OQ-4** SCI FIFO usage (some SCI modes have FIFOs; the polling path
-  doesn't need them — confirm IRQ path requirements from the manual).
+  doesn't need them — confirm IRQ path requirements from the manual). —
+  Slice 5 answer: the IRQ path uses the non-FIFO `RDR`/`TDR` registers
+  only, same as polling; FIFO modes stay out of scope.
 - **OQ-5** `ra4m1` PAC license and completeness (does it expose USBFS,
-  IELSR/ICU, data flash registers?).
+  IELSR/ICU, data flash registers?). — Slice 5 partial answer: ICU and
+  IELSR are exposed, MIT OR Apache-2.0. But the PAC's `rt` feature is
+  bound to `cortex-m-rt ^0.6` and cannot coexist with this workspace's
+  0.7 runtime, so the HAL supplies its own 32-entry vector table and
+  firmware builds cortex-m-rt with the `device` feature instead.
 - **OQ-6** Whether SCI9 output actually appears in the monitor — verify on
-  hardware early (the bridge's forwarding loop suggests yes; untested).
+  hardware early. — Verified on UNO R4 WiFi in Slice 5 (2026-10-19):
+  sustained interrupt-driven output and all 4096 paced host bytes echoed
+  correctly through the bridge. Repeated uploads over that same USB path
+  succeeded. Unpaced USB bursts are not reliable in this setup; continuous
+  4 KiB UART bursts are independently verified through the R3/SCI2 rig.
 
 ## 11. Implementer's source list
 
-- Renesas RA4M1 hardware manual (R01UH0888 — register chapters: SCI, USBFS,
+- Renesas RA4M1 hardware manual (R01UH0887 — register chapters: SCI, USBFS,
   ICU/IELSR, GPT, ADC140, MSTP, clock tree) and the RA4M1 datasheet.
 - RA4M1 SVD (source of the `ra4m1` PAC).
 - ABX00087 product reference manual — board wiring facts (block diagram,

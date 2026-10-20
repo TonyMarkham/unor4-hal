@@ -12,6 +12,9 @@ An independent hardware abstraction layer (HAL) for the Arduino UNO R4
   checked-in transcription of the boards' hardware facts
 - cycle-accurate SysTick delay (`embedded-hal::delay::DelayNs`)
 - HOCO 48 MHz clock initialization at startup
+- interrupt infrastructure: the ICU/IELSR event system, a dispatch table
+  behind the vector table, and an IRQ-mode UART with ring buffers
+  (`embedded-hal-nb` / `embedded-io` / `core::fmt::Write` impls)
 
 Design, requirements, and build order live in the repo's spec docs:
 [HalSpec.md](HalSpec.md), [Plan.md](Plan.md), [Limitations.md](Limitations.md).
@@ -20,15 +23,18 @@ Design, requirements, and build order live in the repo's spec docs:
 
 Early development — the API is unstable and the crate is not yet published
 to crates.io. Verified on real hardware so far: 48 MHz clock init, GPIO
-output, SysTick delay (1,584-byte blinky firmware), and SCI2 UART output
-observed through a classic-UNO serial bridge. Slice 2 (input GPIO, both
-board pin maps) is implemented and host-tested; its hardware run is
-pending. Slice 3 (UART SCI2 polling, baud calculator host-tested) is
-implemented and verified on the bridge (boot banner + tick stream); its
-10-minute soak run is pending. Slice 4 (UART SCI9 — the monitor path, no
-adapter) is implemented and host-tested; its hardware run is pending.
+output, SysTick delay (blinky firmware), SCI2 UART output observed through
+a R3 serial bridge, and SCI9 UART output through the board's own
+USB monitor port. Slice 2 (input GPIO, both board pin maps) is implemented
+and host-tested; its hardware run is pending. Slice 3's 10-minute soak run
+is pending. Slice 4's upload-path re-verification is pending. Slice 5
+(interrupts: ICU/IELSR event table, dispatch, IRQ-mode UART) is
+hardware-verified on WiFi: simultaneous SCI2/SCI9 uppercase echo,
+eight continuous 4 KiB SCI2 bursts, and an uninterrupted heartbeat.
+The IRQ-enabled host suite contains 32 tests. Minima is build/host-tested,
+not hardware-tested.
 
-Planned next: interrupt support (ICU/IELSR), PWM, ADC, data flash, and
+Planned next: UART SCI1 (the WiFi AT channel), PWM, ADC, data flash, and
 USB CDC-ACM.
 
 ## Install
@@ -74,14 +80,16 @@ The workspace has two crates: `crates/unor4-hal` (the library) and
 From the repo root:
 
 ```powershell
-cargo test -p unor4-hal
+cargo test -p unor4-hal --features uart-irq
 ```
 
-Expected: `16 passed; 0 failed` - the count grows with each slice. These
+Expected: `32 passed; 0 failed` - the count grows with each slice. These
 run on the host: clock math, the delay table, the golden pin-table
 cross-check that proves the compiled board map matches the transcribed
-hardware facts, and the SCI2 baud calculator (every shipped baud is
-proven within 3% before any hardware run).
+hardware facts, the SCI2 baud calculator (every shipped baud is
+proven within 3% before any hardware run), the IELSR event-table
+integrity checks, and the IRQ UART's ring buffers. (`cargo test -p
+unor4-hal` without the feature runs 24 of them.)
 
 ## Using the library
 
@@ -118,7 +126,10 @@ unor4-hal   = { path = "../unor4-hal" }
 # ...or the git form:
 # unor4-hal = { git = "https://github.com/TonyMarkham/unor4-hal.git" }
 embedded-hal = "1.0.0"
-cortex-m-rt = { version = "0.7.7", features = ["set-vtor"] }
+# `device` is required since Slice 5: unor4-hal supplies the real
+# 32-entry IELSR vector table, which replaces cortex-m-rt's generic
+# 240-entry default.
+cortex-m-rt = { version = "0.7.7", features = ["set-vtor", "device"] }
 panic-halt  = "1.0.0"
 ```
 
@@ -171,7 +182,7 @@ Two rules for every upload, from the course's verified procedure:
 > bootloader can enumerate a different COM number than the sketch).
 >
 > Setting `$PORT` (the R4, used by every upload) and `$uartPort` (the
-> slice 3 bridge UNO) here feeds every command below. Boards are picked
+> slice 3 bridge R3) here feeds every command below. Boards are picked
 > by board name, not by port position — a second connected board cannot
 > hijack `$PORT`.
 > If a later flash fails on the port, re-run the preamble and flash again.
@@ -179,7 +190,7 @@ Two rules for every upload, from the course's verified procedure:
 > On macOS/Linux the same steps apply, with
 > the port discovered as `PORT=$(arduino-cli board list --format json | jq -r '.ports[0].address')`.
 >
-> > ### List the boards and find the UNO R4's port:
+> > ### List the boards and find the R4's port:
 > > ```powershell
 > > arduino-cli board list
 > > ```
@@ -204,7 +215,7 @@ Two rules for every upload, from the course's verified procedure:
 > > > COM3
 > > > ```
 >
-> > ### List the boards and find the bridge UNO's port:
+> > ### List the boards and find the bridge R3's port:
 > > ```powershell
 > > arduino-cli board list
 > > ```
@@ -364,29 +375,29 @@ Two rules for every upload, from the course's verified procedure:
 > ### Slice 3 - UART SCI2 (`slice03_sci2`)
 >
 > > [!IMPORTANT]
-> > **Test setup** (no USB-UART adapter needed): a classic UNO
+> > **Test setup** (no USB-UART adapter needed): an R3
 > > (`arduino:avr:uno`) runs the relay sketch
 > > `arduino/sketches/slice03-adapter/slice03-adapter.ino` and acts as
 > > the USB-UART bridge. Wiring, 3 wires:
 > >
-> > - UNO **D0** <-> R4 **D1** (P302, the R4's TX)
-> > - UNO **D1** <-> R4 **D0** (P301, the R4's RX)
-> > - UNO **GND** <-> R4 **GND**
+> > - R3 **D0** <-> R4 **D1** (P302, the R4's TX)
+> > - R3 **D1** <-> R4 **D0** (P301, the R4's RX)
+> > - R3 **GND** <-> R4 **GND**
 > >
 > > The relay forwards both directions: anything the R4 sends appears
-> > in the monitor on the UNO's USB port, and anything typed in the
+> > in the monitor on the R3's USB port, and anything typed in the
 > > monitor goes to the R4. Monitor runs at **115200 8N1**.
 >
 > **Install the bridge sketch** (one-time, from the repo root; the
-> bridge UNO's `$uartPort` comes from the Preamble).
+> bridge R3's `$uartPort` comes from the Preamble).
 >
-> Compiles the relay sketch for the classic UNO (AVR target):
+> Compiles the relay sketch for the R3 (AVR target):
 >
 > ```powershell
 > arduino-cli compile --fqbn arduino:avr:uno arduino/sketches/slice03-adapter
 > ```
 >
-> Installs it on the bridge UNO:
+> Installs it on the bridge R3:
 >
 > ```powershell
 > arduino-cli upload -p $uartPort --fqbn arduino:avr:uno arduino/sketches/slice03-adapter
@@ -416,7 +427,7 @@ Two rules for every upload, from the course's verified procedure:
 > arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice03_sci2.bin
 > ```
 >
-> **Evaluate:** open the **bridge UNO's** port at 115200 (not the R4's
+> **Evaluate:** open the **bridge R3's** port at 115200 (not the R4's
 > own USB port - this slice talks on the header pins):
 >
 > ```powershell
@@ -446,7 +457,7 @@ Two rules for every upload, from the course's verified procedure:
     >   the tick stream = fail.
 > - **Fail - nothing at all:** check the three wires (D0<->D1 crossed
     >   as listed above, GND common) and that the relay sketch is on the
-    >   bridge UNO.
+    >   bridge R3.
 > - **Fail - garbage characters in the tick stream:** baud mismatch.
     >   Run `cargo test` - the calculator's 3% tolerance is proven on the
     >   host, so suspect the monitor's configured rate first.
@@ -527,6 +538,170 @@ Two rules for every upload, from the course's verified procedure:
 > shared wire survived — record it under **Verified** below.
 >
 > **Verified:** pending hardware run.
+
+> ### Slice 5 — interrupts: IRQ-mode UART echo + heartbeat (`slice05_echo`)
+>
+> **Automated two-board regression (`slice05_rig`) — preferred:** connect
+> R3 D0 ↔ R4 D1, R3 D1 ↔ R4 D0, D3 ↔ D3, and GND ↔ GND.
+> Both boards remain connected over USB. The R4's D1 is TX and D0 is RX;
+> the same is true for the R3. The controller uses D3 as an active-low
+> test gate. No D2 button is needed for this automated binary.
+>
+> From `crates/test-firmware/`:
+>
+> ```powershell
+> powershell -NoProfile -ExecutionPolicy Bypass -File .\test-slice05.ps1
+> ```
+>
+> The execution-policy override applies only to this PowerShell process.
+> The script discovers both ports by FQBN using `arduino-cli board list`,
+> builds the reference/controller sketches and Rust firmware, and uploads
+> all three in order. The reference sketch first leaves the R4's D0/D1
+> as inputs so its TX driver cannot interfere with the R3 bootloader.
+> Never send host commands to the R3 port while the R4 drives its RX pin.
+>
+> - `arduino/sketches/slice05-reference`: Arduino-core SCI9 register dump
+>   and echo reference at 9600; also the safe staging image for R3 uploads.
+> - `arduino/sketches/slice05-controller`: autonomous R3 checker at 115200.
+>   It generates eight **continuous 4096-byte UART bursts**, receives the
+>   uppercase echoes simultaneously, and compares every returned byte.
+> - `slice05_rig`: both SCI2 and SCI9 in IRQ mode at 115200, both using
+>   the public default rings (256 RX/128 TX). The main loop toggles
+>   D13 every half-second using elapsed SysTick cycles, not loop counts.
+> - The host independently sends 4096 paced bytes through the SCI9 USB
+>   bridge and checks the complete uppercase response. Both paths must
+>   have zero receive errors/overflows, no duplicate/inherited ICU routes,
+>   and consecutive heartbeat reports about one second apart.
+>
+> The ESP32-S3 bridge dropped host USB bursts in this setup; that is not
+> a HAL ring-size test. The unpaced burst test therefore uses the R3 wire,
+> while SCI9 RX is checked separately with individually paced USB bytes.
+> `arduino-cli monitor` local echo is not evidence of a board response.
+>
+> Logs are saved under `target/slice05-hardware/{r4,uno}.log`. To repeat
+> against the already-flashed pair, add `-SkipBuild -SkipUpload`.
+>
+> **Verified on 2026-10-19:** R4 `COM3`, R3 `COM4`, Arduino
+> renesas_uno core 1.6.0. All eight rounds returned `sent=4096 received=4096
+> mismatches=0` (32768 bytes); concurrent SCI9 echo matched all 4096 bytes.
+> Both UART error/overflow counters stayed zero, `stale=0 routes=6
+> duplicates=0`, and 25 heartbeat reports continued with observed arrival
+> intervals of 0.993–1.016 seconds using the default rings. Repeated uploads succeeded without
+> disconnecting the wires. LED electrical/visual timing was not measured;
+> the automated heartbeat timing assertion measures serial report arrival.
+>
+> **Bugs fixed:** the bootloader left SCI9 event links in ICU slots 4–7.
+> Linking those events again in slots 0–3 violated RA4M1 hardware manual
+> R01UH0887EJ0100 §13.4.2 and caused one-shot IRQ delivery. HAL startup now
+> clears inherited routes/NVIC state, and linking rejects duplicate events.
+> A second race primed TDR while TXI already owned it, overwriting bytes;
+> priming now requires idle TX interrupts. Per-byte TIE toggles, ISR polling,
+> the bit-band experiment, and the unused TEI interrupt were removed.
+>
+> **Application startup:** after attaching IRQ peripherals, main calls
+> `unsafe { unor4_hal::intc::enable_interrupts() };` outside any critical
+> section. The bootloader leaves PRIMASK set. Enabling an individual IELSR
+> slot no longer clears that global mask behind the caller's back.
+>
+> **Standalone manual example (`slice05_echo`):**
+>
+> > [!IMPORTANT]
+> > **Test setup** (no adapter, no second board): the echo runs on the
+> > same board-internal SCI9 monitor line as slice 4 — **P109 (TX) /
+> > P110 (RX)**, forwarded by the ESP32-S3 bridge to the board's own
+> > USB port (`$PORT` from the Preamble). Monitor at **115200 8N1**.
+> > The same never-open-at-1200/2400-baud rule as slice 4 applies.
+> > Wiring: the slice 2 pushbutton between **D2 and GND**. The firmware
+> > waits until D2 reads low; it does not detect monitor attachment or
+> > require a new button-press edge. This is not a host/board handshake.
+> >
+> > This binary needs the `uart-irq` feature (it is not a default):
+> > the build command below enables it.
+>
+> **Build and convert** (from `crates/test-firmware/`):
+>
+> > [!IMPORTANT]
+> > >
+> > > Run every command in this section from `crates/test-firmware/`
+>
+> Compiles the IRQ-mode echo firmware (release, size-optimized):
+>
+> ```powershell
+> cargo build --release --bin slice05_echo --features uart-irq
+> ```
+>
+> Converts the ELF into the raw binary the uploader consumes:
+>
+> ```pwsh
+> cargo objcopy --release --bin slice05_echo --features uart-irq -- -O binary slice05_echo.bin
+> ```
+>
+> **Flash** (never-cold rule applies; `$PORT` from the Preamble):
+>
+> ```powershell
+> arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice05_echo.bin
+> ```
+>
+> **Evaluate:** upload, then open the R4's own port at 115200 (the same
+> `$PORT` the upload used):
+>
+> ```powershell
+> arduino-cli monitor -p $PORT --config baudrate=115200
+> ```
+>
+> If the firmware is still waiting at its D2 gate, **press the D2
+> pushbutton** after connecting the monitor. If the gate has already
+> passed, ticks are already running and the one-time banner may have
+> been sent before the monitor connected. The firmware has no monitor-
+> attachment handshake or command to restart its tick count.
+>
+> - **Manual monitor check — ongoing heartbeat and counters:**
+>
+>   ```text
+>   tick 10 ov=0 er=0
+>   tick 11 ov=0 er=0
+>   tick 12 ov=0 er=0
+>   ```
+>
+>   The first visible tick need not be 1. Missing the banner is not, by
+>   itself, a failure. Check that ticks continue and observe D13 for the
+>   heartbeat; the main loop schedules its toggles every half-second.
+> - **Typed text is not an echo test:** `arduino-cli monitor` locally
+>   displays input, so seeing lowercase text such as `tony` does not
+>   establish that the RA4M1 received or returned it. Typed text and board
+>   output can share a display line; do not expect the clean separate
+>   `hello` / `HELLO` transcript previously shown here. The firmware
+>   uppercases bytes it actually receives, but this monitor command does
+>   not establish instant per-keystroke delivery through the host/bridge.
+>   Use the automated two-board test for verified byte-for-byte SCI9 echo.
+> - **Counter interpretation:** `ov=0 er=0` means no RX-ring overflow or
+>   receive-error event has been counted. It does not prove that typed
+>   bytes reached the board or were echoed successfully.
+> - **Burst verification:** use the automated two-board test above.
+>   Pasting 4 KB into this bridge's monitor does not reliably deliver
+>   those bytes to the RA4M1, regardless of the HAL's ring capacity.
+> - **Expected around reset:** bridge/ESP32 diagnostic noise, as in
+>   slice 4. Continued malformed board output or increasing counters
+>   needs investigation; do not classify it as harmless reset noise.
+> - **Fail — no echo but ticks fine:** distinguish host/bridge delivery
+>   from the HAL receive path using the automated test and its counters.
+> - **Fail — echo works but LED stutters:** investigate foreground
+>   blocking or excessive ISR time; the heartbeat uses elapsed cycles.
+>
+> **Regression note:** this slice replaces cortex-m-rt's generic
+> 240-entry interrupt table with the HAL's real 32-entry IELSR table.
+> Every earlier binary got *smaller* (the table shrank by 832 bytes and
+> grew by 32 one-purpose trampolines): blink 1,584 → 1,452 `text`,
+> SCI2/SCI9 4,084/4,088 → 3,960 (historical measurements). Current WiFi
+> release sizes from `cargo size --release --bin <name> --features uart-irq`:
+> `slice05_echo`: text=9064, data=0, bss=668;
+> `slice05_rig`: text=11508, data=0, bss=1072 bytes.
+>
+> **Verification scope:** automated rig verified above. The owner's
+> standalone monitor capture showed ticks 9–15 with `ov=0 er=0` and mixed
+> input/banner/heartbeat text on the first displayed line. That capture
+> confirms ongoing heartbeat reports, not uppercase RX echo or D2-gate
+> timing. The standalone button interaction remains unverified.
 
 ## License
 

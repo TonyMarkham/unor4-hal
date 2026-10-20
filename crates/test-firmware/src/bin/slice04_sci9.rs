@@ -9,8 +9,11 @@
 //! after this run, flash any sketch again to prove uploading still
 //! works (README slice 4).
 //!
-//! Size budget: release `text` = 4,088 bytes (identical on both board
-//! maps — P109/P110 are the same chip pins either way).
+//! Size budget: release `text` = 3,960 bytes (identical on both board
+//! maps - P109/P110 are the same chip pins either way). Was 4,088 at
+//! slice 4; Slice 5's real 32-entry IELSR vector table replaces
+//! cortex-m-rt's generic 240-entry default table and shrinks every
+//! binary.
 
 #![no_std] // don't link the standard library — no OS down here
 #![no_main] // no standard main(); we provide our own entry point

@@ -78,8 +78,8 @@ core tables, and the binary works with both feature builds.
 + host unit tests. Binary: `slice03_sci2.rs` — boot banner + `tick N` at
 1 Hz on D0/D1.
 
-**Observable:** `tick N` lines stream in the bridge monitor — a classic
-UNO running the relay sketch `arduino/sketches/slice03-adapter`, wired
+**Observable:** `tick N` lines stream in the bridge monitor — an R3
+running the relay sketch `arduino/sketches/slice03-adapter`, wired
 D0<->D1 crossed to the R4 (README slice 3).
 **Done when:** baud unit tests pass on the host and the board prints for
 10 minutes without garbage or a hang.
@@ -104,8 +104,13 @@ while D13 keeps a 1 Hz heartbeat.
 
 **Observable:** typed characters echo back instantly, and the heartbeat LED
 shows no stutter while the echo runs — proof the main loop isn't polling.
-**Done when:** a 4 KB burst pasted into the monitor echoes without dropping
-a byte (ring-buffer sizing test, recorded).
+**Done when:** a continuous 4 KiB UART burst echoes byte-for-byte without
+errors/overflows while the heartbeat continues. On the WiFi board, use
+`slice05_rig` with the R3 controller for the continuous SCI2 burst and a
+separate paced SCI9 USB test: the ESP32 bridge drops unpaced host USB
+bursts before they reach the HAL, so a monitor paste is not a valid
+ring-buffer test. The reproducible command and hardware results are
+recorded in README's Slice 5 section (WiFi verified 2026-10-19).
 
 ### Slice 6 — UART SCI1 → the door to WiFi
 

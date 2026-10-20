@@ -123,10 +123,9 @@ fn port_block(port: char) -> &'static ra4m1::port0::RegisterBlock {
 
 /// Unlocks `PWPR`, read-modify-writes one `PmnPFS`, relocks.
 ///
-/// No concurrency guard yet — no interrupts, no threads at this point.
-/// TODO(slice 5): wrap in `critical_section::with`.
+/// Keep the shared write-protection window atomic with respect to ISRs.
 fn modify_pfs(port: char, pin: u8, clear: u32, set: u32) {
-    unsafe {
+    critical_section::with(|_| unsafe {
         core::ptr::write_volatile(PWPR, 0x00); // B0WI = 0
         core::ptr::write_volatile(PWPR, 0x40); // PFSWE = 1
         let addr = pfs_addr(port, pin);
@@ -134,5 +133,5 @@ fn modify_pfs(port: char, pin: u8, clear: u32, set: u32) {
         core::ptr::write_volatile(addr, (v & !clear) | set);
         core::ptr::write_volatile(PWPR, 0x00); // PFSWE = 0
         core::ptr::write_volatile(PWPR, 0x80); // B0WI = 1
-    }
+    });
 }

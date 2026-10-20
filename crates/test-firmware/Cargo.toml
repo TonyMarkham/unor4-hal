@@ -8,12 +8,45 @@ edition      = { workspace = true }
 # features stay off here so exactly one map lands in each image.
 #   wifi image:   cargo build --release
 #   minima image: cargo build --release --no-default-features --features minima
-default = ["wifi"]
-minima  = ["unor4-hal/minima"]
-wifi    = ["unor4-hal/wifi"]
+default  = ["wifi"]
+minima   = ["unor4-hal/minima"]
+wifi     = ["unor4-hal/wifi"]
+uart-irq = ["unor4-hal/uart-irq"]
+
 
 [dependencies]
 unor4-hal    = { workspace = true, default-features = false }
+cortex-m     = { workspace = true }
 embedded-hal = { workspace = true }
-cortex-m-rt  = { workspace = true }
+cortex-m-rt  = { workspace = true, features = ["device"] }
 panic-halt   = { workspace = true }
+ra4m1        = { workspace = true }
+
+[[bin]]
+name = "slice05_echo"
+path = "src/bin/slice05_echo.rs"
+required-features = ["uart-irq"]
+
+[[bin]]
+name = "slice05_rig"
+path = "src/bin/slice05_rig.rs"
+required-features = ["uart-irq"]
+
+[[bin]]
+name = "slice05_diag"
+path = "src/bin/slice05_diag.rs"
+required-features = ["uart-irq"]
+
+[[bin]]
+name = "slice05_rxpoll"
+path = "src/bin/slice05_rxpoll.rs"
+
+[[bin]]
+name = "slice05_uno"
+path = "src/bin/slice05_uno.rs"
+required-features = ["uart-irq"]
+
+[[bin]]
+name = "slice05_s9"
+path = "src/bin/slice05_s9.rs"
+required-features = ["uart-irq"]

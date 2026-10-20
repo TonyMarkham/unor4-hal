@@ -16,6 +16,10 @@ cortex-m           = { version = "0.7.9" }
 cortex-m-rt        = { version = "0.7.7", features = ["set-vtor"] }
 critical-section   = { version = "1.2.0" }
 embedded-hal       = { version = "1.0.0" }
+embedded-hal-nb    = { version = "1.0.0" }
+embedded-io        = { version = "0.4.0" }
+nb                 = { version = "1.1.0" }
+
 panic-halt         = { version = "1.0.0" }
 ra4m1              = { version = "0.2.0" }
 

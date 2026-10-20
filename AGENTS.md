@@ -5,6 +5,16 @@ embedded Rust by implementing this HAL themselves, and other Arduino UNO R4
 owners will run the result on their boards. Both facts are constraints — the
 learning rules the process, the audience raises the quality bar.
 
+## Terminology
+
+Throughout AGENTS.md and the project docs:
+
+- **R3** — Arduino UNO R3. The bench's stimulus/controller board.
+- **R4** — Arduino UNO R4 WiFi. The target board
+  (`arduino:renesas_uno:unor4wifi`); "R4" always means the WiFi variant.
+- **UNO R4 Minima** — no hardware for it exists in this project; any
+  Minima-specific claim is unverified until someone with the board runs it.
+
 ## Project goal
 
 Implement [HalSpec.md](HalSpec.md) milestone by milestone: an independent
@@ -23,6 +33,12 @@ the board shows it, not when it compiles.
   the IELSR event map: cite the manual section in a comment or doc when it
   isn't obvious. Arduino's C++ core and the existing HAL are behavioral
   references and cross-check data only — never transcribed.
+- **Reference sources** (behavioral references and cross-check data only,
+  never transcribed):
+  [ArduinoCore-renesas](https://github.com/arduino/ArduinoCore-renesas) —
+  the Arduino core for the UNO R4; 
+  [ArduinoCore-API](https://github.com/arduino/ArduinoCore-API) — the
+  shared Arduino core API definitions.
 - The crate is consumed by the owner's course repo (arduino-embedded-rust)
   as a git dependency until first publish; after publish, by version.
 
@@ -35,6 +51,14 @@ the board shows it, not when it compiles.
    them. The only files an agent may create/edit directly are
    documentation: AGENTS.md, HalSpec.md, Limitations.md, Plan.md, README.md,
    and CHANGELOG.md entries.
+   - **Override by explicit owner grant.** The owner may grant the agent
+     permission to write specific project code or config. A grant is valid
+     only if explicit and affirmative — never inferred from silence, a
+     dismissed prompt, or lack of objection — and covers only the scope it
+     names (files, crates, tasks, or a stated period). A grant in force is
+     recorded in this file under **Current grants** so every session reads
+     the same state; the owner amends or revokes it there. When no grant is
+     in force, this rule applies as written.
 2. **Never run build, test, flash, or install commands on the owner's
    behalf.** Guide, don't execute. Provide the exact command and the expected
    output; the owner runs it and reports back. `cargo` runs, hardware runs,
@@ -94,6 +118,28 @@ the board shows it, not when it compiles.
      once per instruction. If it is not granted, the agent executes the
      original request as given. Repeatedly withholding execution while
      re-raising the concern is a violation.
+9. **Debug by differential observation, not hypothesis enumeration.** When
+   the board or a build misbehaves:
+   - **Read before theorizing.** Any state that can be observed —
+     registers, buffers, configuration — is evidence. A model of state
+     that has not been read (what the bootloader "left behind", what a
+     prior session "probably" changed) is a hypothesis, and is never
+     treated as ground truth.
+   - **When a working reference exists on the same silicon** (the Arduino
+     core, FSP, a vendor example), the first debugging experiment is to
+     dump and diff its observable state against ours — not to theorize
+     about behavioral differences.
+   - **Prefer experiments that discriminate.** Choose the observation that
+     eliminates many hypotheses at once over the test that falsifies one.
+     If several experiments in a row have failed to narrow the field, stop
+     generating theories and run the broadest available observation.
+   - **A documented decisive step is executed first.** If a handoff or
+     prior session names the observation that would settle the matter,
+     that observation runs before any other experiment.
+
+### Current grants (owner-granted exceptions to rules 1–2)
+
+- None. Rules 1 and 2 apply as written.
 
 ## Board-safety constraints (the test board is the same UNO R4 WiFi)
 
@@ -106,6 +152,56 @@ the board shows it, not when it compiles.
 - The USB port is shared with the ESP32-S3 bridge (uploads, monitor). Any
   API that flips the USB mux to the RA4M1 must be explicit and documented as
   disconnecting the bridge (HalSpec §5.5).
+
+## Test bench (hardware available to agents)
+
+Two boards are connected for testing: the UNO R4 WiFi (test board) and a
+UNO R3 (stimulus/controller), wired together as follows.
+
+- Run `arduino-cli board list` to get their addresses accurately — never
+  assume a COM number. The R4's entry matches FQBN
+  `arduino:renesas_uno:unor4wifi`; the R3's matches `arduino:avr:uno`.
+- Set `$PORT` to the port of the R4, `$uartPort` to the port of the R3.
+- R3 D0 (TX) <--> R4 D1 (RX)
+- R3 D1 (RX) <--> R4 D0 (TX)
+- R3 D3      <--> R4 D3
+- R3 GND     <--> R4 GND
+- Push Button 0 <--> R4 D2
+- Push Button 1 <--> R4 GND
+
+D0/D1 crossed form the SCI2 UART channel between the boards; D3 straight
+through is the test-gate line (the controller drives it low to mark a test
+round — see `slice05_rig.rs`). While the R4's TX driver is active it can
+corrupt the R3's bootloader sync; uploads that touch both boards stage the
+R4's pins as inputs first (`test-slice05.ps1` shows the working order).
+
+- **The bench is extensible — and the agent proposes extensions.** When a
+  future slice would benefit from wiring the bench does not have (an extra
+  UART pair, a stimulus line, a trigger, an analog source), the agent
+  recommends the addition as part of that slice's plan: pins on both
+  boards, purpose, and the automation it enables. The owner does the
+  physical wiring. Never assume a connection exists that is not listed
+  above.
+- **Wires never move.** Re-wiring an existing connection to different
+  physical pins is a **no-no** — the bench grows additively and is never
+  re-patched between slices. Changing what an already-wired pin is used
+  for is entirely possible and allowed; only its physical placement is
+  fixed.
+- **The bench is planned through Slice 10.** When proposing wiring
+  additions, the agent checks them against the pins every remaining slice
+  needs, so that the bench as wired for Slice 10 remains compatible with
+  every earlier slice's wiring (Plan.md lists the slices; HalSpec lists
+  the peripherals).
+- **The proof pattern is a two-board pair.** Each slice is validated by a
+  coordinated pair: an R3 `.ino` sketch (stimulus/controller) and the
+  slice's R4 Rust binary in `test-firmware/src/bin/`, working together to
+  prove the slice's feature on the bench (`slice05-controller` +
+  `slice05_rig` is the model).
+- **R3-side code is Arduino sketches, and stays in the repo.** All R3
+  code is a typical Arduino `.ino` sketch (compiled with `arduino-cli`,
+  never Rust). The sketch used to validate a slice is durably copied into
+  `arduino/sketches/` in this repo as part of that slice, so the hardware
+  evidence stays reproducible from the repo alone.
 
 ## Library conventions (this repo's equivalent of the course's doc rules)
 

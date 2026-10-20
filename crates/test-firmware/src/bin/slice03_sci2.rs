@@ -6,8 +6,10 @@
 //! this board's D0 (P301, RXD2), GND common. Monitor on the bridge at
 //! 115200 8N1.
 //!
-//! Size budget: release `text` = 4,084 bytes (identical on both board
-//! maps — D0/D1 are P301/P302 either way).
+//! Size budget: release `text` = 3,960 bytes (identical on both board
+//! maps - D0/D1 are P301/P302 either way). Was 4,084 at slice 3; Slice
+//! 5's real 32-entry IELSR vector table replaces cortex-m-rt's generic
+//! 240-entry default table and shrinks every binary.
 
 #![no_std] // don't link the standard library — no OS down here
 #![no_main] // no standard main(); we provide our own entry point

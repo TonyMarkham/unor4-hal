@@ -1,6 +1,6 @@
 //! The ownership gate: everything claimed exactly once, at startup.
 
-use crate::{clock, delay, gpio};
+use crate::{clock, delay, gpio, intc};
 
 /// Claimed peripherals — available exactly once, at startup.
 pub struct Peripherals {
@@ -37,7 +37,14 @@ impl Peripherals {
         // Safe: `take()` above succeeded exactly once, so no other caller
         // can reach this line — the single precondition `steal()` demands.
         let device = unsafe { ra4m1::Peripherals::steal() };
-
+        // A bootloader jump is not a hardware reset: discard inherited
+        // ICU routes before the HAL allocates its own interrupt slots.
+        intc::init();
+        // Keep the HAL's 32-entry IELSR vector table in the link even
+        // for firmware that enables no interrupts (see
+        // `intc::vector_table`) — with cortex-m-rt's `device` feature,
+        // its absence is a link error, not a silent fallback.
+        let _linked = intc::vector_table();
         let clocks = clock::init(device.SYSTEM);
         let pins = gpio::Pins::new(
             device.PORT0,

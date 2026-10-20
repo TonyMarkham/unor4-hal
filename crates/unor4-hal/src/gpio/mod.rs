@@ -1,7 +1,7 @@
 //! Typestate GPIO for the RA4M1.
 //!
 //! Hardware facts (Renesas RA4M1 hardware manual, I/O ports chapter) live
-//! in [`pin`]; this module wires the types together.
+//! in the `pin` module; this module wires the types together.
 
 mod alternate;
 mod analog;

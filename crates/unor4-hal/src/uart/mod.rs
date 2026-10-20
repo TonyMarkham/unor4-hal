@@ -46,9 +46,12 @@
 //!   Limitations.md. The even-class value is Slice-3 hardware-proven;
 //!   the odd-class value is proven by Slice 4's monitor run.
 //!
-//! No `embedded-hal` serial traits yet: eh 1.0's serial traits live in
-//! the separate `embedded-hal-nb` crate, and traits plus ring buffers
-//! land together with interrupt mode (Slice 5).
+//! No `embedded-hal` serial traits on the polling driver yet: eh 1.0's
+//! serial traits live in the separate `embedded-hal-nb` crate, and the
+//! polling `Uart` keeps the shape the course already teaches. The
+//! interrupt-mode driver ([`UartIrq`], feature `uart-irq`) carries the
+//! `embedded-hal-nb` serial, `embedded-io`, and `core::fmt::Write`
+//! impls from Slice 5 on (HalSpec §6).
 
 mod baud_error;
 mod baud_params;
@@ -58,6 +61,11 @@ mod read_error;
 mod read_result;
 mod sci_channel;
 mod uart;
+
+#[cfg(feature = "uart-irq")]
+mod ring;
+#[cfg(feature = "uart-irq")]
+mod uart_irq;
 
 // ---------------------------------------------------------------------------------------------- //
 
@@ -69,3 +77,16 @@ pub use read_error::ReadError;
 pub use read_result::ReadResult;
 pub use sci_channel::SciChannel;
 pub use uart::Uart;
+
+#[cfg(feature = "uart-irq")]
+pub(crate) use ring::Ring;
+#[cfg(feature = "uart-irq")]
+pub(crate) use uart::{
+    PSEL_SCI2, PSEL_SCI9, init_sci, release_module_stop_sci2, release_module_stop_sci9,
+};
+
+#[cfg(feature = "uart-irq")]
+pub use uart_irq::UartIrq;
+
+#[cfg(all(test, feature = "uart-irq"))]
+pub(crate) use uart_irq::can_prime_tx;
