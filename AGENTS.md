@@ -166,6 +166,7 @@ UNO R3 (stimulus/controller), wired together as follows.
 - R3 D1 (RX) <--> R4 D0 (TX)
 - R3 D3      <--> R4 D3
 - R3 D2 (INT0) <--> R4 D6 (GPT PWM out, slice 7 measurement rig)
+- R3 D5 (PWM out) <--> R4 A0 (ADC in, slice 8 measurement rig)
 - R3 GND     <--> R4 GND
 - Push Button 0 <--> R4 D2
 - Push Button 1 <--> R4 GND

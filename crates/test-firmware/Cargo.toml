@@ -59,3 +59,11 @@ required-features = ["uart-irq"]
 [[bin]]
 name = "slice07_breathe"
 path = "src/bin/slice07_breathe.rs"
+
+[[bin]]
+name = "slice08_adc"
+path = "src/bin/slice08_adc.rs"
+
+[[bin]]
+name = "slice08_probe"
+path = "src/bin/slice08_probe.rs"

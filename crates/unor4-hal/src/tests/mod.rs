@@ -3,6 +3,7 @@
 //! tests need the `uart-irq` feature (`cargo test -p unor4-hal
 //! --features uart-irq`).
 
+mod adc;
 mod clock;
 mod delay;
 mod pins;

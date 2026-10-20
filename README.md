@@ -870,6 +870,109 @@ Two rules for every upload, from the course's verified procedure:
 > is off, or the R4 is not past its banner (check the R4 log for
 > `gate open`).
 
+> ### Slice 8 — ADC, the chip senses (`slice08_adc`)
+>
+> Proves the ADC140 driver: single-shot, software-triggered, blocking
+> reads on **A0** (raw + millivolts at 4 Hz) through the slice-4 SCI9
+> monitor path, while the D13 heartbeat keeps ticking. The measurement
+> is instrumented: R3 **D5** drives a PWM duty staircase straight into
+> R4 **A0** (`arduino/sketches/slice08-source`), and per gate round
+> (R3 D3 → R4 D3, the slice 6/7 pattern) the firmware averages five
+> 1.5 s windows — 631 650 samples each — one window per duty step. The
+> mean of a PWM wave over whole periods is duty × VREF, so the window
+> means trace the staircase with no RC filter.
+>
+> **Hardware facts** (full chain in `Research/slice-08-research.md`):
+> A0–A5 are the same chip pins on both boards — A0 = P014 → **AN009**
+> (also DA0), A1 = P000 → AN000, A2 = P001 → AN001, A3 = P002 → AN002,
+> A4 = P101 → AN021, A5 = P100 → AN022 (manual §19 Tables 19.5/19.6
+> `ASEL` rows, cross-checked entry-for-entry against the Arduino
+> core's `pinmux.inc`; the golden test in `src/tests/adc.rs` locks the
+> table). `MSTPCRD.MSTPD16` releases the ADC140 (manual §10, p.175)
+> with the §35.8.5 ≥ 1 µs settle; the software trigger needs no
+> trigger setup (`ADCSR.ADST` works regardless of `TRGE`/`EXTRG`/
+> `TRSA`, §35.2.12); `ADST` **self-clears** at scan end in single scan
+> mode (§35.3.2.1 step 4) — the driver polls that self-clear, bounded;
+> the reference is the reset selection AVCC0/AVSS0 (§35.2.31) = the
+> board's 5 V analog rail; sampling states stay at the reset 0Dh,
+> valid at this crate's 1:2 PCLKB:PCLKC ratio (≥ 6 states, §35.2.14).
+> Conversion ≈ 1206 ns (12-bit high-speed, `calc_scan_time`, host
+> tested). **There is no ADC trait in `embedded-hal` 1.0** — the
+> driver exposes its own `read()` API (HalSpec §5.7/§6 amended
+> 2026-10-19), the same stance the UART module takes outside
+> `embedded-io`.
+>
+> **The full analog surface (HalSpec §5.7):** all six header pins are
+> addressable through the sealed `Channel` trait (one `const AN` per
+> pin type; only analog-state pins type-check). Hardware proof: A0
+> end-to-end (accuracy instrumented), and A1–A5 converted through the
+> same driver during the bring-up diagnostic (~13 M conversions each,
+> zero errors — their *values* float because nothing drives them;
+> only A0's accuracy is measured).
+>
+> **Build and convert** (from `crates/test-firmware/`):
+>
+> ```powershell
+> cargo build --release --bin slice08_adc
+> cargo objcopy --release --bin slice08_adc -- -O binary slice08_adc.bin
+> ```
+>
+> **Flash** (R4 first, then the R3 rig; never-cold rule applies;
+> `$PORT` = the R4, `$uartPort` = the R3):
+>
+> ```powershell
+> arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice08_adc.bin
+> arduino-cli compile --fqbn arduino:avr:uno ..\..\arduino\sketches\slice08-source
+> arduino-cli upload -p $uartPort --fqbn arduino:avr:uno ..\..\arduino\sketches\slice08-source
+> ```
+>
+> **Evaluate:** open both ports at 115200. Between rounds the R4
+> prints `a0 raw=… mv=…` at 4 Hz — with the sketch driving duty 0
+> between rounds this sits at ~0 mV; jumper A0 → 5 V / 3V3 / GND for
+> the rails check. Per round the R3 prints its commanded duties and
+> the R4 prints the five window lines. One round (2026-10-20):
+>
+> ```text
+> R3: duty 0 / duty 64 / duty 127 / duty 191 / duty 255
+> R4: W0 n=631650 mean=7     min=0    max=53   err=0
+>     W1 n=631650 mean=1045   min=0    max=4095 err=0
+>     W2 n=631650 mean=2051   min=0    max=4095 err=0
+>     W3 n=631650 mean=3072   min=0    max=4095 err=0
+>     W4 n=631650 mean=4095   min=4095 max=4095 err=0
+> ```
+>
+> Reading: the staircase 0 → 1045 → 2051 → 3072 → 4095 against the
+> expected duty/255 × 4095 = 0 → 1028 → 2040 → 3068 → 4095; worst
+> error +17 LSB ≈ 21 mV, inside the datasheet's ±32 LSB (±39 mV) max
+> for A0's precision class (and W1–W3 are inside the ±20 LSB
+> high-precision line); window means repeat within ±2 LSB across
+> rounds; W0/W4 are DC lines (rail-to-rail ends solid), W1–W3's
+> min/max 0/4095 is the instantaneous PWM ripple the averaging is
+> for. Heartbeat continuous (`tick N` every second through gate,
+> staircase, and windows).
+>
+> **Verified on 2026-10-20:** R4 `COM3`, R3 `COM4`, three aligned
+> rounds captured simultaneously; staircase within tolerance at both
+> rails (0 and 4095 exactly — the datasheet-tolerance done-when),
+> ~10 M conversions with `err=0`, uploads succeeded before and after.
+> WiFi map verified; Minima image builds (A0–A5 are the same chip pins
+> on both maps) but is hardware-untested — no Minima on the bench.
+> Size (WiFi): `slice08_adc` text=15108, data=0, bss=4.
+>
+> **Fail — every analog reading wanders ~800–3400 raw and no `W`
+> window is ever at a rail, while the R3 log shows the staircase:**
+> the D5→A0 path is open. A solid duty-255 (5 V DC) can only read full
+> scale on a connected pin, so this signature means the wire is not on
+> the driven pin. Triage history: the R3 end was parked in **D4** —
+> not a PWM pin on the ATmega328p (PWM: D3/D5/D6/D9/D10/D11) — moving
+> it to D5 fixed everything in one round. `slice08_probe` (20-pin
+> digital scan) finds where a signal actually lands if this recurs.
+>
+> **Fail — `a0 err=timeout`:** the ADC140 never completed a scan; dump
+> `ADCSR` before theorizing (the poll bound is thousands of times the
+> computed conversion time — reaching it is a fault, not a short
+> wait).
+
 ## License
 
 MIT — see [LICENSE.md](LICENSE.md).

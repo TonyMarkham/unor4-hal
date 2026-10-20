@@ -226,8 +226,13 @@ let n = serial.read(&mut buf)?;           // impl embedded-io Read (blocking)
 
 - ADC140 driver for A0–A5, single-shot blocking read
   `read(pin) -> Result<u16, Error>` with configurable resolution (12-bit
-  default). `embedded-hal` `adc` traits. A0's DAC function is out of scope
+  default). A0's DAC function is out of scope
   until needed.
+  — Amended 2026-10-19 (slice 8 research): **`embedded-hal` 1.0 has no
+  `adc` module** (docs.rs: 1.0.0 ships only `delay`, `digital`, `i2c`,
+  `pwm`, `spi`; `embedded-hal-nb` 1.0 only `serial`, `spi`), so there is
+  no ecosystem ADC trait to implement — the driver exposes its own
+  infallible `read()` API, as the UART module does outside `embedded-io`.
 
 ### 5.8 Data flash (`dflash.rs`)
 
@@ -250,7 +255,7 @@ let n = serial.read(&mut buf)?;           // impl embedded-io Read (blocking)
 | UART    | — | serial Read/Write | Read/Write | ✔ |
 | USB CDC | — | — | Read/Write | ✔ |
 | PWM     | pwm SetDutyCycle | — | — | — |
-| ADC     | adc OneShot | — | — | — |
+| ADC     | — (no adc trait in e-h 1.0) | — | — | — |
 | Delay   | DelayNs | — | — | — |
 
 ## 7. Testing and CI (what makes this not hobby-grade)
@@ -350,6 +355,21 @@ M2 is the mission-critical one; M4 is the largest single item (see OQ-3).
   first period), so no bootloader-inherited state is trusted.
   Evidence and reproduction: README slice 7; verification chain:
   `Research/slice-07-research.md`.
+- **OQ-9** The ADC140's reference rail and achievable accuracy on the
+  UNO R4 — the board runs the analog domain at 5 V while the digital
+  VCC is 3.3 V, which does not satisfy the datasheet accuracy tables'
+  `VCC = AVCC0` condition. — Verified on UNO R4 WiFi in Slice 8
+  (2026-10-20), measured by the R3 rig (`arduino/sketches/
+  slice08-source`, R3 D5 → R4 A0): both rails land exactly on the code
+  range (duty 0 → 0–7 LSB, duty 255 → 4095 with min=max — solid DC),
+  and the PWM staircase 0/25/50/75/100% reads 7/1045/2051/3072/4095
+  against expected 0/1028/2040/3068/4095 — worst error +17 LSB
+  ≈ 21 mV, inside the datasheet's ±32 LSB max for the normal-precision
+  channel (and within ±20 LSB for the three windows below the top
+  step). Window means repeat within ±2 LSB across rounds; ~10 M
+  conversions with zero errors across all six channels. Evidence and
+  reproduction: README slice 8; verification chain:
+  `Research/slice-08-research.md`.
 
 ## 11. Implementer's source list
 

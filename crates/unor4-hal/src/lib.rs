@@ -27,6 +27,7 @@ compile_error!("`minima` and `wifi` are mutually exclusive — a board is a phys
 #[cfg(not(any(feature = "minima", feature = "wifi")))]
 compile_error!("no board pin map selected — enable `wifi` (default) or `minima`");
 
+pub mod adc;
 pub mod clock;
 pub mod delay;
 pub mod gpio;

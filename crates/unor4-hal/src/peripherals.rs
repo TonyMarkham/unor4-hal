@@ -39,6 +39,12 @@ pub struct Peripherals {
     /// exactly once). Header mapping: **D9** on both boards (P303 →
     /// GTIOC7B).
     pub gpt167: ra4m1::GPT167,
+    /// ADC140 — the 14-bit A/D converter, unconfigured (the ADC driver
+    /// claims it exactly once). Header mappings, identical on both
+    /// boards: **A0** (P014 → AN009), **A1** (P000 → AN000), **A2**
+    /// (P001 → AN001), **A3** (P002 → AN002), **A4** (P101 → AN021),
+    /// **A5** (P100 → AN022).
+    pub adc140: ra4m1::ADC140,
     /// P501 — SCI1 TX, wired to the ESP32-S3. Not a header pin on the
     /// WiFi board (board-internal to the ESP32-S3); on the Minima the
     /// same chip pin sits on the SWD connector (Arduino core
@@ -102,6 +108,7 @@ impl Peripherals {
             gpt163: device.GPT163,
             gpt166: device.GPT166,
             gpt167: device.GPT167,
+            adc140: device.ADC140,
             sci1_tx: gpio::Pin::new(),
             sci1_rx: gpio::Pin::new(),
             #[cfg(feature = "wifi")]

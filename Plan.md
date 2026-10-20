@@ -164,6 +164,22 @@ prints A0 as raw + millivolts at 4 Hz.
 live as a pot turns (if available).
 **Done when:** readings within datasheet tolerance at both rails, printed
 through the slice 4 monitor path.
+— Done: verified on WiFi 2026-10-20, measured by the R3 rig
+(`arduino/sketches/slice08-source`, R3 D5 → R4 A0, one additive bench
+wire): five 1.5 s averaged windows (631 650 samples each) over the R3's
+PWM duty staircase read 7/1045/2051/3072/4095 against expected
+0/1028/2040/3068/4095 — worst error +17 LSB ≈ 21 mV, inside the
+datasheet's ±32 LSB budget for the channel class; both rails land
+exactly (0–7 LSB / 4095 solid DC); window means repeat within ±2 LSB;
+~10 M conversions across all six channels with zero errors. All six
+pins addressable (sealed `Channel` trait); hardware proof on WiFi A0
+(accuracy instrumented), A1–A5 converted on hardware but value-untested
+(nothing drives them — noted in README slice 8). `embedded-hal` 1.0 has
+no `adc` trait — the driver's own `read()` API (HalSpec §5.7/§6
+amended). Reproduction commands, transcript, and the bring-up triage
+(open-wire signature → wire parked in R3 D4): README slice 8.
+Verification chain: `Research/slice-08-research.md`. Recorded as HalSpec
+OQ-9.
 
 ### Slice 9 — USB CDC → the board becomes its own monitor
 
