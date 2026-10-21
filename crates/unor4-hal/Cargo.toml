@@ -3,9 +3,12 @@ name               = "unor4-hal"
 version            = { workspace = true }
 edition            = { workspace = true }
 license            = { workspace = true }
+rust-version       = { workspace = true }
 description        = "Independent HAL for the Arduino UNO R4 (Renesas RA4M1)"
 repository         = "https://github.com/TonyMarkham/unor4-hal"
 readme             = "README.md"
+keywords           = ["arduino", "embedded", "hal", "ra4m1", "no-std"]
+categories         = ["embedded", "hardware-support", "no-std"]
 
 [dependencies]
 cortex-m           = { workspace = true, features = ["critical-section-single-core"] }

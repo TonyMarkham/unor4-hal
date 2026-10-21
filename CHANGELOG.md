@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-10-21
+
+### Added
+
+- Crate packaging metadata: `keywords` (`arduino`, `embedded`, `hal`,
+  `ra4m1`, `no-std`) and `categories` (`embedded`, `hardware-support`,
+  `no-std`). crates.io reads these from the manifest at publish time and
+  they cannot be added to an already-published version, so they land on
+  this release.
+- Manifest `rust-version = "1.85"` (inherited from the workspace), so
+  users on older toolchains get a clear error instead of an opaque one.
+
+[0.1.2]: https://github.com/TonyMarkham/unor4-hal/releases/tag/v0.1.2
+
 ## [0.1.0] - 2026-10-21
 
 First release. An independent, `no_std` hardware abstraction layer for the
