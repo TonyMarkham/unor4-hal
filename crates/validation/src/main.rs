@@ -1,9 +1,9 @@
 //! Host side of the validation pair (`r3-validator` + `r4_validator`). It
 //! neither builds nor uploads: flash both boards first (README, Validation).
 //!
-//! `validate all` runs the bench's full sequence: S1-S8
-//! and the S4 token, then S9 and the knock (unless `--skip-usb`), then the
-//! reset bits. Exit code 0 only if every executed check passed; results go
+//! `validate all` runs the bench's full sequence: S1-S8, the S10 flash
+//! self-test and the S4 token, then S10 retention across three resets, then
+//! S9 and the knock (unless `--skip-usb`), then the reset bits. Exit code 0 only if every executed check passed; results go
 //! to `target/validation/<timestamp>.txt`.
 
 #![deny(missing_docs)]
@@ -20,7 +20,7 @@ mod tests;
 // ---------------------------------------------------------------------------------------------- //
 
 use crate::{
-    checks::{identify, reset, slices, usb},
+    checks::{identify, reset, retention, slices, usb},
     cli::{Cli, Command},
     discover::{PID_BRIDGE, PID_R3, VID_ARDUINO, find_port},
     report::Report,
@@ -80,6 +80,17 @@ fn dispatch(cli: &Cli) -> Result<bool, String> {
                 reset::double(&mut r3, &mut report);
             }
         }
+        Command::S10 {
+            resets,
+            watch,
+            min_boots,
+        } => {
+            let mut r3 = open_r3(cli)?;
+            match watch {
+                Some(seconds) => retention::watch(&mut r3, *seconds, *min_boots, &mut report),
+                None => retention::resets(&mut r3, *resets, &mut report),
+            }
+        }
     }
     report
         .finish()
@@ -87,12 +98,13 @@ fn dispatch(cli: &Cli) -> Result<bool, String> {
     Ok(report.failed() == 0)
 }
 
-/// Everything: S1-S8 + S4, S9 + knock, reset bits.
+/// Everything: S1-S8 + S10 flash + S4, S10 retention, S9 + knock, reset bits.
 fn run_all(cli: &Cli, report: &mut Report, skip_usb: bool) -> Result<(), String> {
     let (mut r3, mut monitor, bridge) = open_pair(cli)?;
     println!("R3={} R4 bridge={bridge}", r3.name());
     slices::run(&mut r3, &mut monitor, &bridge, &["all".to_owned()], report);
     drop(monitor);
+    retention::resets(&mut r3, 3, report);
     if !skip_usb {
         usb::run(&mut r3, report);
     }

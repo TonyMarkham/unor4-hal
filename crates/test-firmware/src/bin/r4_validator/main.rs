@@ -1,4 +1,4 @@
-//! All-in-one R4 responder: one image that exercises Slices 1–9 of this
+//! All-in-one R4 responder: one image that exercises Slices 1–10 of this
 //! HAL on request from the R3 (`arduino/validation/r3-validator`), so the
 //! whole library can be re-proven on the bench without swapping firmware.
 //! The host side is the `validate` CLI (`crates/validation`).
@@ -54,7 +54,16 @@
 //! | `P<pm>` | 7 | `P <duty> <max>`: D6 at `pm` per-mille of 1 kHz |
 //! | `C<ms>` | 8 | `C <mean> <n> <min> <max> <err>`: A0, 12-bit, `ms` window |
 //! | `U` | 9 | `U 1` (taken, knock armed) or `U 0` (already taken) |
+//! | `K` | 10 | `K <boots> <ok>`: the boot log, read back now (`K ERR <name>` if recording failed) |
+//! | `F` | 10 | `F OK <blank erase ms> <program ms> <erase ms> <mismatches>` or `F FAIL <step> <error>`: block 6 self-test |
 //! | `S` | — | `S <usb state> <taken> <up s> <ov> <er>` |
+//!
+//! # Slice 10
+//!
+//! Every boot appends one byte to the boot log in data flash block 7
+//! (`flash.rs`) before the request loop starts. `K` reads the log back
+//! with plain reads, never entering P/E mode, so it is cheap enough to
+//! poll. `F` runs the erase/program/blank-check round trip on block 6.
 //!
 //! # Slice 9
 //!
@@ -77,6 +86,7 @@
 
 mod body;
 mod clock;
+mod flash;
 mod frame;
 mod link;
 mod requests;
@@ -86,6 +96,7 @@ mod requests;
 use crate::{
     body::Body,
     clock::Clock,
+    flash::{BootLog, self_test},
     frame::FrameBuf,
     link::{LINK_BAUD, link_tx, release_link_when_idle, reply},
     requests::{
@@ -97,6 +108,7 @@ use crate::{
 use unor4_hal::{
     Peripherals,
     adc::{Adc, Resolution},
+    dflash::DataFlash,
     intc,
     pwm::Pwm,
     uart::{Uart, UartIrq},
@@ -130,7 +142,15 @@ fn main() -> ! {
     let mut monitor = Uart::sci9(p.sci9, p.sci9_tx, p.sci9_rx, 115_200, &p.clocks);
     #[cfg(feature = "minima")]
     let mut monitor = Uart::sci9(p.sci9, p.pins.d11, p.pins.d12, 115_200, &p.clocks);
-    monitor.write_bytes(b"unor4-hal validator 1 - slices 1-9, R3 link on SCI2 9600\r\n");
+    monitor.write_bytes(b"unor4-hal validator 1 - slices 1-10, R3 link on SCI2 9600\r\n");
+
+    // Slice 10: claim the data flash and log this boot before any
+    // request can read the log.
+    let mut flash = DataFlash::take(&p.clocks);
+    let boot_log = BootLog::record(&mut flash);
+    monitor.write_bytes(b"boot log: ");
+    monitor.write_bytes(boot_log.reply(flash.as_ref().ok()).as_bytes());
+    monitor.write_bytes(b"\r\n");
 
     // Slices 3/5: the link. Slice 6: the AT channel. Then CPU interrupts.
     LINK.sci2(p.sci2, p.pins.d1, p.pins.d0, LINK_BAUD, &p.clocks);
@@ -262,6 +282,8 @@ fn main() -> ! {
                 }
                 None => Body::new(b"U 0"),
             },
+            b'K' => boot_log.reply(flash.as_ref().ok()),
+            b'F' => self_test(flash.as_mut().ok(), &mut clock),
             b'S' => {
                 let mut body = Body::new(b"S");
                 body.num(usb_state(cdc.state()))

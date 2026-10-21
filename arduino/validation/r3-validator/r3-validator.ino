@@ -1,7 +1,8 @@
 // r3-validator — R3 side of the all-in-one unor4-hal validation pair.
-// Peer: crates/test-firmware/src/bin/r4_validator.rs (one R4 image for Slices 1-9).
-// Host: validation/validate.ps1 drives this sketch, and also checks the
-// two slices only a PC can see (4: the bridge monitor, 9: native USB).
+// Peer: crates/test-firmware/src/bin/r4_validator/ (one R4 image for Slices 1-10).
+// Host: the validate CLI (crates/validation) drives this sketch, and also
+// checks what only a PC can see (4: the bridge monitor, 9: native USB) or
+// time (10: the boot counter across resets and power cycles).
 //
 // Wiring (the bench in AGENTS.md, unchanged):
 //   R3 D0/D1 <-> R4 D1/D0  request link, 9600 8N1 (shared with this USB port)
@@ -19,7 +20,7 @@
 // ever look like one):
 //   ?  help                     i  identify the R4
 //   a  run every automatic check (S3, S1, S2 input, S2 button, S4,
-//      S5 burst, S5 traits, S6-S8)
+//      S5 burst, S5 traits, S6-S8, S10 flash)
 //   l  S3  link: 10 identify round trips
 //   c  S1  clock/GPIO/Delay: R4 square wave on D3, timed here on INT1
 //   g  S2  input: drive D3 low/high, R4 reads it
@@ -33,6 +34,12 @@
 //   p  S7  PWM on D6: 0/25/50/75/100 %, period and duty measured on INT0
 //   n  S8  ADC A0: D5 duty 0/64/127/191/255, R4 averages A0
 //   u  S9  take native USB on the R4 (bridge drops; knock armed)
+//   f  S10 data flash self-test on block 6: erase, blank check, program
+//          1024 bytes, read back, refused rewrite, erase, blank check
+//   k  S10 boot-counter watch: polls K until x; reports BASE, GAP and
+//          BOOT lines. Inside the watch only x (end) and ! (reset the
+//          R4) are obeyed. Power-cycling the R4 (jack, USB off) or ! each
+//          must show one BOOT with the counter increased and intact.
 //   s      R4 status: USB state, taken flag, uptime, SCI2 ov/er
 //   !      single RESET pulse          @  double RESET pulse (bootloader)
 // The reset pulses need no R4 firmware. They reach this sketch only while
@@ -400,6 +407,124 @@ void checkAdc() {
   Serial.println(F("A0 12-bit window means within 2% of full scale"));
 }
 
+// ---- Slice 10: data flash -----------------------------------------------
+
+void checkFlash() {
+  // Two erases (<= 286 ms each, datasheet) plus 1024 programs: allow 5 s.
+  if (!request("F", 5000)) { noReply(10); return; }
+  // F OK <blank erase ms> <program ms> <erase ms> <mismatches>
+  const bool pass = replyIs("F OK") && field(5) == 0;
+  verdict(10, pass);
+  Serial.print(F("flash self-test: program 1024 B "));
+  Serial.print(field(3));
+  Serial.print(F(" ms, erase "));
+  Serial.print(field(4));
+  Serial.print(F(" ms, mismatches "));
+  Serial.print(field(5));
+  Serial.print(F("; R4: "));
+  Serial.println(reply);
+}
+
+char watchCommand = 0;  // the last x or ! the PC sent during the watch
+
+// One K poll. Unlike request(), PC command bytes that arrive outside a
+// frame are kept in watchCommand instead of discarded.
+bool pollBootLog(uint32_t timeoutMs) {
+  Serial.write(STX);
+  Serial.print("K");
+  Serial.write(ETX);
+  const uint32_t start = millis();
+  bool inFrame = false;
+  replyLen = 0;
+  while (millis() - start < timeoutMs) {
+    if (!Serial.available()) continue;
+    const int c = Serial.read();
+    if (c == STX) {
+      inFrame = true;
+      replyLen = 0;
+    } else if (c == ETX && inFrame) {
+      reply[replyLen] = 0;
+      return true;
+    } else if (inFrame) {
+      if (replyLen < sizeof(reply) - 1) reply[replyLen++] = c;
+      else inFrame = false;
+    } else if (c == 'x' || c == '!') {
+      watchCommand = c;
+    }
+  }
+  reply[0] = 0;
+  return false;
+}
+
+// The boot-counter watch. The first reply is the baseline (the R4 was
+// already running). After that every change of the counter is one boot
+// event: good when the log reads back intact and the counter grew (or
+// restarted at 1 after a full log). A run of unanswered polls is a GAP
+// (R4 unpowered or restarting).
+void watchBoots() {
+  long base = -1, last = -1;
+  bool seen = false, gap = false;
+  uint16_t boots = 0, bad = 0;
+  watchCommand = 0;
+  Serial.println(F("S10 WATCH polling K; x ends, ! resets the R4"));
+  for (;;) {
+    while (Serial.available()) {
+      const int c = Serial.read();
+      if (c == 'x' || c == '!') watchCommand = c;
+    }
+    if (watchCommand == 'x') break;
+    if (watchCommand == '!') {
+      watchCommand = 0;
+      pulse();
+      Serial.println(F("RESET 1"));
+    }
+    if (pollBootLog(150) && replyIs("K ")) {
+      const long count = field(1);
+      const long intact = field(2);
+      if (count < 0) {
+        bad++;
+        Serial.print(F("S10 ERR "));
+        Serial.println(reply);
+      } else if (!seen) {
+        seen = true;
+        base = count;
+        if (intact != 1) bad++;
+        Serial.print(F("S10 BASE "));
+        Serial.print(count);
+        Serial.print(F(" "));
+        Serial.println(intact);
+      } else if (count != last) {
+        const bool good = intact == 1 && (count > last || count == 1);
+        boots++;
+        if (!good) bad++;
+        Serial.print(F("S10 BOOT "));
+        Serial.print(count);
+        Serial.print(F(" "));
+        Serial.print(intact);
+        Serial.print(F(" "));
+        Serial.print(count - last);
+        Serial.print(F(" "));
+        Serial.println(gap ? 1 : 0);
+      }
+      if (count >= 0) last = count;
+      gap = false;
+    } else if (seen && !gap) {
+      gap = true;
+      Serial.println(F("S10 GAP"));
+    }
+    delay(100);
+  }
+  verdict(10, seen && boots > 0 && bad == 0);
+  Serial.print(F("watch: "));
+  Serial.print(boots);
+  Serial.print(F(" boot events, "));
+  Serial.print(bad);
+  Serial.print(F(" bad, counter "));
+  Serial.print(base);
+  Serial.print(F(" -> "));
+  Serial.println(last);
+}
+
 // ---- Slice 9 and status ----------------------------------------------------
 
 void takeUsb() {
@@ -444,6 +569,7 @@ void runAll() {
   checkAt();
   checkPwm();
   checkAdc();
+  checkFlash();
   Serial.print(F("DONE "));
   Serial.print(passes);
   Serial.print(F(" PASS "));
@@ -453,7 +579,7 @@ void runAll() {
 
 void help() {
   Serial.println(F("r3-validator: a all, l S3, c S1, g S2, b button, m S4, e/t S5,"));
-  Serial.println(F("  w S6, p S7, n S8, u S9, s status, i id, ! reset, @ bootloader"));
+  Serial.println(F("  w S6, p S7, n S8, u S9, f/k S10, s status, i id, ! reset, @ bootloader"));
 }
 
 void setup() {
@@ -489,6 +615,8 @@ void loop() {
     case 'p': checkPwm(); break;
     case 'n': checkAdc(); break;
     case 'u': takeUsb(); break;
+    case 'f': checkFlash(); break;
+    case 'k': watchBoots(); break;
     case 's': status(); break;
     case '!': pulse(); Serial.println(F("RESET 1")); break;
     case '@': pulse(); delay(200); pulse(); Serial.println(F("RESET 2")); break;

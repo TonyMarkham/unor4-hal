@@ -15,6 +15,10 @@ An independent hardware abstraction layer (HAL) for the Arduino UNO R4
 - interrupt infrastructure: the ICU/IELSR event system, a dispatch table
   behind the vector table, and an IRQ-mode UART with ring buffers
   (`embedded-hal-nb` / `embedded-io` / `core::fmt::Write` impls)
+- 8 KB data flash (`dflash`): plain reads, byte programming (once per
+  erase, blank-checked first), 1-KB block erase, blank check; code flash
+  is unreachable through the API. The mode-switch helpers run from SRAM
+  via cortex-m-rt's `.data` copy; no `memory.x` change is needed
 
 Design, requirements, and build order live in the repo's spec docs:
 [HalSpec.md](HalSpec.md), [Plan.md](Plan.md), [Limitations.md](Limitations.md).
@@ -35,6 +39,9 @@ Slice 6 (UART SCI1, the WiFi AT channel) is hardware-verified on WiFi:
 the ESP32-S3's AT server answered `OK` to 9/9 witnessed `AT` rounds with
 `ov=0 er=0` (README, slice 6). The IRQ-enabled host suite contains
 33 tests. Minima is build/host-tested, not hardware-tested.
+Slice 10 (data flash) is hardware-verified on WiFi for erase+rewrite and
+retention across resets (All-in-one validation, 2026-10-21); the ~20
+power cycles of its done-when are pending.
 
 Planned next: UART SCI1 (the WiFi AT channel), PWM, ADC, data flash, and
 USB CDC-ACM.
@@ -176,7 +183,8 @@ per-slice commands is machine-specific.
 > [!NOTE]
 > **2026-10-20:** the per-slice programs and R3 sketches were retired in
 > favour of the validation pair (All-in-one validation, at the end of this
-> section). One `validate all` run re-proves Slices 1–9.
+> section). One `validate all` run re-proves Slices 1–10 (Slice 10's
+> power cycles excepted: they need hands, `validate s10 --watch`).
 >
 > The Slice 1–8 subsections below are the historical record. To repeat
 > one exactly as written, run its commands in a worktree of commit
@@ -1204,17 +1212,18 @@ fixed:
 - `Research/slice-09-research.md` keeps its original §10.1, §10.6 and §10.7
   statements, each followed by a dated correction.
 
-### All-in-one validation — Slices 1–9 (`arduino/validation/`)
+### All-in-one validation — Slices 1–10 (`arduino/validation/`)
 
-The validation pair re-proves Slices 1–9 on the existing bench without
+The validation pair re-proves Slices 1–10 on the existing bench without
 swapping firmware between slices. It has three parts:
 
 - `arduino/validation/r3-validator/r3-validator.ino`: the R3 controller.
 - `crates/test-firmware/src/bin/r4_validator/main.rs`: one R4 image built on
   this HAL, with features `usb,uart-irq`.
 - the `validate` CLI (`crates/validation`): the host side. It also checks
-  the two slices only a PC can see: Slice 4 on the bridge monitor and
-  Slice 9 on the native USB port.
+  what only a PC can see or time: Slice 4 on the bridge monitor, Slice 9
+  on the native USB port, and Slice 10's boot counter across resets and
+  power cycles.
 
 The R3 and R4 exchange framed requests (`STX` body `ETX`) at 9600 8N1 on
 SCI2. R4 replies contain only `A–Z`, `0–9` and spaces, while PC commands to
@@ -1237,6 +1246,9 @@ Each check:
 | 7 | D6 PWM at 0/25/50/75/100 %, measured by the R3 on INT0 | period 1000 ± 10 µs, duty ± 10/1000, 0/100 % flat |
 | 8 | R3 D5 duty 0/64/127/191/255 into A0; the R4 averages 200 ms windows | mean within ± 82 LSB (2 % of 12-bit full scale) |
 | 9 | Native CDC after R3 `u`, while the bridge is gone | ticks consecutive, max gap ≤ 1.5 s, exact echoes, state Configured |
+| 10 | Data flash block 6 (`F`): erase, blank check, program 1024 bytes, read back, a second program of a used byte, erase, blank check | byte-exact, the rewrite refused (`NotBlank`), blank after each erase |
+| 10 (retention) | The R4 appends one byte per boot to a log in block 7; the R3 watch (`k`) polls `K` and pulses `!` three times | each reset advances the counter by exactly 1, log reads back intact |
+| 10 (power cycles) | The same watch while the owner power-cycles the R4 (`validate s10 --watch`, manual, not in `all`) | ≥ 20 boot events, each +1 and intact |
 | knock | 1200-baud open of the native port | bridge back, R4 silent (bootloader held) |
 | `!` / `@` | R3 RESET pulses | `!` restarts the validator; `@` holds the bootloader |
 
@@ -1268,9 +1280,25 @@ R4 D2 is free/open: the push button is no longer part of the bench
 
 `validate all --skip-usb` leaves out Slice 9 and the knock. Per-slice runs:
 `cargo run --release -p validation -- slices S2` (also `s4`, `usb`,
-`reset --single|--double`, `identify`). Without the CLI, open the R3 at
-9600 and send `a` for S1–S8, or one letter per check (`?` lists them).
-Results go to `target/validation/`.
+`reset --single|--double`, `identify`, `s10 [--resets N]`). Without the
+CLI, open the R3 at 9600 and send `a` for S1–S8 and S10's self-test, or
+one letter per check (`?` lists them). Results go to `target/validation/`.
+
+Slice 10's power cycles (the done-when's ~20, Plan.md) need hands. The
+R4 runs from its barrel jack with **USB unplugged**; the R3 stays on USB
+(it must stay powered while D4 is wired to the R4's RESET, AGENTS.md).
+Then, from the repo root:
+
+```powershell
+cargo run --release -p validation -- s10 --watch 900
+```
+
+Within the 900 s, unplug and replug the jack about 20 times, a few
+seconds apart. Each replug must print one `S10 BOOT <count> 1 1 1` line
+(counter, intact, +1, after a gap). `--min-boots` changes the 20.
+Unverified: while the R4 is unpowered, the R3's idle-HIGH TX (D1) and
+D3 pull-up still reach R4 pins. If that back-powers the R4 enough to keep
+it running, no `GAP`/`BOOT` appears and the check fails visibly.
 
 **Witnessed on WiFi, 2026-10-20:** 14/14 checks passed in one host run, on
 the HAL ported to `embedded-io` 0.7.1:
@@ -1296,6 +1324,32 @@ the HAL ported to `embedded-io` 0.7.1:
 - **Knock, `!` and `@`:** passed.
 
 Minima builds, but is hardware-unverified.
+
+**Witnessed on WiFi, 2026-10-21 (Slice 10, sandbox worktree):** 16/16
+checks passed in one `validate all` run, Slices 1–9 unchanged:
+
+- **Read-only probe first** (a temporary image, research §7.1, nothing
+  programmed): at boot `DFLCTL = 00h` (`DFLEN` resets to 0 and the
+  bootloader leaves it clear), `FENTRYR = 0000h`, `FENTRYR_MF4 = 0000h`,
+  `FISR = 0`, `FPMCR = 08h`. After `DataFlash::take`: `DFLCTL = 01h`,
+  `FISR = 17h` (`PCKA` = 23, writable only in P/E mode, so the entry
+  sequence worked), `FPSR.PERR = 0`. All eight blocks blank-checked
+  blank, `FENTRYR` back to `0000h` after every session, and two 8 KB
+  dumps matched byte for byte. Every byte read `FFh`.
+- **S10:** 1024 bytes programmed in 44 ms (≈ 43 µs/byte; datasheet
+  Table 2.73 typical 42.1–52.4 µs), the programmed block erased in 6 ms
+  (typical 6.42–8.98 ms), 0 mismatches, rewrite refused.
+- **S10 retention:** 3/3 resets each +1 with the log intact (counter
+  7 → 10). A separate `validate s10 --resets 5` run: 5/5 (2 → 7), each
+  boot after a `GAP`.
+- **Host tests:** 70 pass on each map with `usb,uart-irq` (10 new
+  `dflash`), 12 in `validation` (3 new).
+- **Re-run the same day after moving the SRAM helpers from a `.ram_code`
+  `memory.x` section to `.data.*` input sections** (stock `memory.x`):
+  16/16 again. S10: 44 ms program, 6 ms erase, 0 mismatches. Retention
+  3/3 (13 → 16). The log written by the earlier image read back intact
+  through the new one, across the firmware upload.
+- **Not yet witnessed:** the ~20 power cycles (`validate s10 --watch`).
 
 Two earlier runs showed an S6 reply of 7 bytes with no `OK` (the first run,
 before the hex dump existed), and an SCI2 `er=235` total. That total came

@@ -1,5 +1,5 @@
-//! S1-S8: one R3 'a' burst, parsed into per-slice lines, plus the S4 token
-//! check against the bridge monitor text.
+//! S1-S8 and the S10 flash self-test: one R3 'a' burst, parsed into
+//! per-slice lines, plus the S4 token check against the bridge monitor text.
 
 use crate::{
     report::{Report, Verdict},
@@ -21,6 +21,7 @@ const LINE_PATTERNS: &[(&str, &str)] = &[
     ("S6", r"S6 (PASS|FAIL|NA) ?(.*)"),
     ("S7", r"S7 (PASS|FAIL) ?(.*)"),
     ("S8", r"S8 (PASS|FAIL) ?(.*)"),
+    ("S10", r"S10 (PASS|FAIL) ?(flash self-test.*|no reply.*)"),
 ];
 
 /// True when `check_name` is selected by the requested slice names: "all",

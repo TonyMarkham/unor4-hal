@@ -6,6 +6,7 @@
 mod adc;
 mod clock;
 mod delay;
+mod dflash;
 mod pins;
 mod pwm;
 mod uart;

@@ -3,6 +3,7 @@
 
 mod frames;
 mod results;
+mod retention;
 mod slices;
 mod timestamp;
 mod verdict;

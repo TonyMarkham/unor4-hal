@@ -232,6 +232,20 @@ unplug, replug, the number remembers.
 necessity and the owner will witness roughly 20), and an erase+rewrite
 cycle verified byte-exact.
 
+**Status 2026-10-21 (WiFi, sandbox worktree, not yet merged):** the
+following were witnessed:
+
+- the §7.1 read-only probe: every sequencer address and both mode
+  transitions, with nothing programmed;
+- the erase+rewrite cycle byte-exact (R3 `f`, also in `validate all`);
+- the boot counter advancing exactly once per R3 reset with the log
+  intact (`validate s10`, 5/5; and 3/3 inside `validate all`, 16/16).
+
+**Not yet witnessed:** the ~20 power cycles. They need the owner's hands
+(barrel jack, USB unplugged): `validate s10 --watch <seconds>`. Minima
+remains hardware-unverified. Details and commands: README, All-in-one
+validation.
+
 ## Rules that hold across all slices
 
 1. **One observable per slice.** If a slice needs two to be convincing, it's

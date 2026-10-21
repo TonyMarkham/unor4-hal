@@ -253,6 +253,17 @@ let n = serial.read(&mut buf)?;           // impl embedded-io Read (blocking)
 - Sufficient for storing one WiFi credential set. The AT-command
   provisioning flow (credential-storage option C in the course repo's
   AGENTS.md) lives in the app layer.
+- Amended 2026-10-21 (Slice 10 implementation): the API is
+  `DataFlash::take(&Clocks)` (own once-only claim — no PAC token exists),
+  `read(offset, &mut buf)`, `blank_check(offset, len)`, `write(offset,
+  &buf)` (blank-checks its range first; `NotBlank` if any byte is used),
+  `erase_block(0..8)` and `erase_all()`; every mutating call is one
+  complete P/E session, errors are `FlashError`. The read ↔ P/E mode
+  transitions run from SRAM: they sit in `.data.*` input sections,
+  which cortex-m-rt's `link.x` copies to RAM at startup, so firmware
+  needs no `memory.x` change; if a linker script places them elsewhere,
+  `take` returns `RamCodeMissing`. Wear policy (e.g. an append log) stays in the app
+  layer.
 
 ### 5.9 Delay (`delay.rs`)
 

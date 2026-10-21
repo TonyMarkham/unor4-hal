@@ -37,4 +37,21 @@ pub enum Command {
         #[arg(long)]
         double: bool,
     },
+    /// S10 retention: the R4's data flash boot counter, watched by the R3
+    /// ('k'). By default the R3 resets the R4 `--resets` times; with
+    /// `--watch` the owner power-cycles it instead. Needs only the R3
+    /// port, so the R4 may run from its barrel jack with USB unplugged.
+    S10 {
+        /// R3 '!' resets inside the watch; each must advance the counter
+        /// by exactly one with the log intact.
+        #[arg(long, default_value_t = 3)]
+        resets: u32,
+        /// Watch this many seconds for manual power cycles instead of
+        /// resetting.
+        #[arg(long)]
+        watch: Option<u64>,
+        /// With --watch: boot events needed to pass (Plan.md: ~20).
+        #[arg(long, default_value_t = 20)]
+        min_boots: usize,
+    },
 }

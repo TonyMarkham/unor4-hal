@@ -30,6 +30,7 @@ compile_error!("no board pin map selected — enable `wifi` (default) or `minima
 pub mod adc;
 pub mod clock;
 pub mod delay;
+pub mod dflash;
 pub mod gpio;
 pub mod intc;
 pub mod peripherals;
