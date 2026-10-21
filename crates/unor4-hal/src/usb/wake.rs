@@ -1,7 +1,11 @@
 //! Optional USBFS interrupt bell. The consumer still owns USB polling.
 
+use crate::{
+    intc::{Event, Ielsr, register_handler},
+    usb::{Error, Usbfs},
+};
+
 use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
-use crate::{intc::{Event, Ielsr, register_handler}, usb::{Error, Usbfs}};
 use usb_device::UsbError;
 
 // Manual §27.2.7 / §27.3.2: combined USBFS_USBI sources, no SOF/NRDY.
@@ -22,7 +26,11 @@ pub struct UsbWake {
 impl UsbWake {
     /// Creates an unattached bell for a static declaration.
     pub const fn new() -> Self {
-        Self { slot: AtomicU8::new(u8::MAX), pending: AtomicBool::new(false), events: AtomicU32::new(0) }
+        Self {
+            slot: AtomicU8::new(u8::MAX),
+            pending: AtomicBool::new(false),
+            events: AtomicU32::new(0),
+        }
     }
 
     /// Permanently claims an IELSR slot for `Event::UsbfsInt` (0x33).
@@ -67,13 +75,17 @@ impl UsbWake {
 }
 
 impl Default for UsbWake {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn wake_isr(context: *const ()) {
     // attach requires a static instance, registered before the route is enabled.
     let wake = unsafe { &*context.cast::<UsbWake>() };
-    unsafe { (&*ra4m1::USBFS::PTR).intenb0.write(|w| w.bits(0)); }
+    unsafe {
+        (&*ra4m1::USBFS::PTR).intenb0.write(|w| w.bits(0));
+    }
     wake.events.fetch_add(1, Ordering::Relaxed);
     wake.pending.store(true, Ordering::Release);
 }

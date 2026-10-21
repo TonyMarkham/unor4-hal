@@ -21,11 +21,22 @@
 //! only — never transcribed. §11.2.6: VBTBKRn is 8-bit access; §12.1
 //! lists it under PRC1 protection.
 
-use crate::gpio::{Input, Pin};
 #[cfg(feature = "wifi")]
 use crate::gpio::Output;
+use crate::gpio::{Input, Pin};
+
 #[cfg(feature = "wifi")]
 use embedded_hal::digital::PinState;
+
+/// `SYSTEM.VBTBKR[1]` (§11.2.6: VBTBKR0 at 0x4001_E500, 8-bit access).
+#[cfg(feature = "wifi")]
+const VBTBKR1: *mut u8 = 0x4001_E501 as *mut u8;
+
+/// PRC1 unlock for VBTBKR, explicitly listed in manual §12.1.
+#[cfg(feature = "wifi")]
+const PRCR_UNLOCK_PRC1: u16 = 0xA502;
+#[cfg(feature = "wifi")]
+const PRCR_LOCK: u16 = 0xA500;
 
 /// The taken USB port.
 ///
@@ -37,16 +48,6 @@ pub struct UsbPort {
     #[cfg(feature = "wifi")]
     _mux_pin: Pin<'4', 8, Output>,
 }
-
-/// `SYSTEM.VBTBKR[1]` (§11.2.6: VBTBKR0 at 0x4001_E500, 8-bit access).
-#[cfg(feature = "wifi")]
-const VBTBKR1: *mut u8 = 0x4001_E501 as *mut u8;
-
-/// PRC1 unlock for VBTBKR, explicitly listed in manual §12.1.
-#[cfg(feature = "wifi")]
-const PRCR_UNLOCK_PRC1: u16 = 0xA502;
-#[cfg(feature = "wifi")]
-const PRCR_LOCK: u16 = 0xA500;
 
 impl UsbPort {
     /// Routes the connector back to the ESP32-S3 bridge (WiFi).
@@ -73,9 +74,7 @@ impl UsbPort {
         #[cfg(feature = "wifi")]
         {
             let system = unsafe { &*ra4m1::SYSTEM::PTR };
-            system
-                .prcr
-                .write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
+            system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
             unsafe { core::ptr::write_volatile(VBTBKR1, 40) };
             system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
             UsbPort {
@@ -84,7 +83,7 @@ impl UsbPort {
         }
         #[cfg(feature = "minima")]
         {
-            drop(pin);
+            let _ = pin; // consumed: the connector has no switch to own
             UsbPort {}
         }
     }

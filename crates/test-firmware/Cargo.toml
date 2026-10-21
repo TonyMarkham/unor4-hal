@@ -1,35 +1,36 @@
 [package]
-name         = "test-firmware"
-version      = { workspace = true }
-edition      = { workspace = true }
+name              = "test-firmware"
+version           = { workspace = true }
+edition           = { workspace = true }
+autobins          = false
 
 [features]
 # Forward the library's board map (HalSpec §3): the lib's default
 # features stay off here so exactly one map lands in each image.
 #   wifi image:   cargo build --release --features usb,uart-irq
 #   minima image: cargo build --release --no-default-features --features minima,usb,uart-irq
-default  = ["wifi"]
-minima   = ["unor4-hal/minima"]
-wifi     = ["unor4-hal/wifi"]
-uart-irq = ["unor4-hal/uart-irq"]
-usb      = ["unor4-hal/usb"]
-usb-trace = ["usb", "unor4-hal/usb-trace"]
+default           = ["wifi"]
+minima            = ["unor4-hal/minima"]
+wifi              = ["unor4-hal/wifi"]
+uart-irq          = ["unor4-hal/uart-irq"]
+usb               = ["unor4-hal/usb"]
+usb-trace         = ["usb", "unor4-hal/usb-trace"]
 
 
 [dependencies]
-unor4-hal    = { workspace = true, default-features = false }
-cortex-m     = { workspace = true }
-embedded-hal = { workspace = true }
-cortex-m-rt  = { workspace = true, features = ["device"] }
-panic-halt   = { workspace = true }
-ra4m1        = { workspace = true }
-usb-device   = { workspace = true }
-usbd-serial  = { workspace = true }
-embedded-io  = { workspace = true }
+unor4-hal         = { workspace = true, default-features = false }
+cortex-m          = { workspace = true }
+embedded-hal      = { workspace = true }
+cortex-m-rt       = { workspace = true, features = ["device"] }
+panic-halt        = { workspace = true }
+ra4m1             = { workspace = true }
+usb-device        = { workspace = true }
+usbd-serial       = { workspace = true }
+embedded-io       = { workspace = true }
 
 # All-in-one Slices 1-9 responder; its R3 peer and host script live in
-# the repo-root `validation/` directory.
+# the `arduino/validation/` directory.
 [[bin]]
-name = "r4_validator"
-path = "src/bin/r4_validator.rs"
+name              = "r4_validator"
+path              = "src/bin/r4_validator/main.rs"
 required-features = ["usb", "uart-irq"]

@@ -13,7 +13,7 @@ unor4-hal/
 ├── crates/
 │   ├── unor4-hal/          # the library (this repo's product)
 │   └── test-firmware/      # r4_validator, the R4 side of the validation pair — built and flashed locally
-├── validation/             # r3-validator sketch + validate.ps1 host script
+├── arduino/validation/      # r3-validator sketch (host side: the `validate` CLI, crates/validation)
 └── AGENTS.md, HalSpec.md, Limitations.md, Plan.md
 ```
 
@@ -22,9 +22,9 @@ unor4-hal/
   (target pin), `build.rs`. The library crate stays target-agnostic and
   board-agnostic except for the pin tables.
 - Every slice adds its checks to the **validation pair**:
-  - `test-firmware/src/bin/r4_validator.rs`;
-  - `validation/r3-validator`;
-  - `validation/validate.ps1`.
+  - `test-firmware/src/bin/r4_validator/main.rs`;
+  - `arduino/validation/r3-validator`;
+  - the `validate` CLI (`crates/validation`) for the PC-only checks.
 
   The pair is the regression suite (rules 2–3 below). Until 2026-10-20
   each slice added its own binary. The "Binary:" lines in the slice
@@ -234,11 +234,11 @@ cycle verified byte-exact.
 2. **Nothing ships from the library without the validation pair proving
    it.** A `unor4-hal` module lands in the same commit as the matching
    checks in the validation pair:
-   - a request in `crates/test-firmware/src/bin/r4_validator.rs`;
-   - a check in `validation/r3-validator/r3-validator.ino`;
-   - a row in `validation/validate.ps1` when only a PC can observe it.
+   - a request in `crates/test-firmware/src/bin/r4_validator/main.rs`;
+   - a check in `arduino/validation/r3-validator/r3-validator.ino`;
+   - a check in the `validate` CLI when only a PC can observe it.
 3. **The validation pair is the regression suite.** It keeps every
-   finished slice's check, so one run of `validate.ps1` re-proves all of
+   finished slice's check, so one run of `validate all` re-proves all of
    them. A check is removed only together with the feature it proves.
    The built `.bin` image is a local build artifact (`*.bin` is
    gitignored); regenerate it from source any time.

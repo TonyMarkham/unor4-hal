@@ -1,0 +1,16 @@
+[package]
+name       = "validation"
+version    = { workspace = true }
+edition    = { workspace = true }
+license    = { workspace = true }
+publish    = false # host-side tool, never on crates.io
+autobins   = false
+
+[dependencies]
+clap       = { workspace = true }
+regex      = { workspace = true }
+serialport = { workspace = true }
+
+[[bin]]
+name       = "validate"
+path       = "src/main.rs"

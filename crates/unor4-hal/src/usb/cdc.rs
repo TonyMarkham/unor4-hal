@@ -14,10 +14,15 @@
 //! bootloader handoff is explicitly opt-in; see
 //! [`CdcAcm::enable_bootloader_knock`] for what it does and does not do.
 
+use crate::usb::{Error, UsbPort, Usbfs};
+
 use core::fmt;
-use super::{Error, UsbPort, Usbfs};
 use embedded_io::{ErrorType, Read, Write};
-use usb_device::{UsbError, bus::UsbBus, device::{UsbDevice, UsbDeviceState}};
+use usb_device::{
+    UsbError,
+    bus::UsbBus,
+    device::{UsbDevice, UsbDeviceState},
+};
 use usbd_serial::SerialPort;
 
 /// A blocking USB CDC-ACM serial port.
@@ -48,17 +53,23 @@ impl<'a, B: UsbBus> CdcAcm<'a, B> {
     /// }
     /// ```
     pub fn new(serial: SerialPort<'a, B>, device: UsbDevice<'a, B>) -> Self {
-        Self { device, serial, bootloader_knock: None, port: None }
+        Self {
+            device,
+            serial,
+            bootloader_knock: None,
+            port: None,
+        }
     }
 
     /// Drives the USB stack one poll. Call this from the main loop (or
     /// let the blocking read/write calls drive it for you).
     pub fn poll(&mut self) -> bool {
         let active = self.device.poll(&mut [&mut self.serial]);
-        if self.serial.line_coding().data_rate() == 1200 && !self.serial.dtr() {
-            if let Some(reboot) = self.bootloader_knock {
-                reboot(self.device.bus(), &mut self.port);
-            }
+        if self.serial.line_coding().data_rate() == 1200
+            && !self.serial.dtr()
+            && let Some(reboot) = self.bootloader_knock
+        {
+            reboot(self.device.bus(), &mut self.port);
         }
         active
     }
@@ -94,7 +105,9 @@ impl<'a, B: UsbBus> CdcAcm<'a, B> {
     /// Non-blocking read: drives one poll and returns what arrived
     /// (0 = nothing). The echo/tick loop pattern.
     pub fn read_available(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        if buf.is_empty() { return Ok(0); }
+        if buf.is_empty() {
+            return Ok(0);
+        }
         self.poll();
         match self.serial.read(buf) {
             Ok(n) => Ok(n),
@@ -106,7 +119,9 @@ impl<'a, B: UsbBus> CdcAcm<'a, B> {
     /// Polls once and queues as many bytes as the class can accept.
     /// Returns zero when full; unlike blocking Write, never waits for a host.
     pub fn write_available(&mut self, data: &[u8]) -> Result<usize, Error> {
-        if data.is_empty() { return Ok(0); }
+        if data.is_empty() {
+            return Ok(0);
+        }
         self.poll();
         match self.serial.write(data) {
             Ok(n) => Ok(n),
@@ -149,8 +164,10 @@ impl CdcAcm<'_, Usbfs> {
         self.bootloader_knock = Some(|bus, port| {
             // Let USBFS finish the host's control status handshake before
             // detaching; line_coding changes during the preceding poll.
-            if bus.control_transfer_idle() {
-                if let Some(port) = port.take() { bus.reboot_to_bootloader(port); }
+            if bus.control_transfer_idle()
+                && let Some(port) = port.take()
+            {
+                bus.reboot_to_bootloader(port);
             }
         });
     }

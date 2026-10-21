@@ -176,7 +176,7 @@ per-slice commands is machine-specific.
 > [!NOTE]
 > **2026-10-20:** the per-slice programs and R3 sketches were retired in
 > favour of the validation pair (All-in-one validation, at the end of this
-> section). One `validate.ps1` run re-proves Slices 1–9.
+> section). One `validate all` run re-proves Slices 1–9.
 >
 > The Slice 1–8 subsections below are the historical record. To repeat
 > one exactly as written, run its commands in a worktree of commit
@@ -261,7 +261,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 1 — blink (`slice01_blink`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S1.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S1.
 >
 > **Build and convert** (from `crates/test-firmware/`):
 >
@@ -306,7 +306,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 2 — button (`slice02_button`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S2.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S2.
 >
 > > [!IMPORTANT]
 > > **Wiring:** a pushbutton between **D2 and GND** — nothing else. The
@@ -397,7 +397,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 3 - UART SCI2 (`slice03_sci2`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S3.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S3.
 >
 > > [!IMPORTANT]
 > > **Test setup** (no USB-UART adapter needed): an R3
@@ -493,7 +493,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 4 — UART SCI9, the monitor path (`slice04_sci9`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S4.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S4.
 >
 > > [!IMPORTANT]
 > > **Test setup** (no adapter, no second board): SCI9 talks on the
@@ -568,7 +568,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 5 — interrupts: IRQ-mode UART echo + heartbeat (`slice05_echo`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S5.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S5.
 >
 > **Automated two-board regression (`slice05_rig`) — preferred:** connect
 > R3 D0 ↔ R4 D1, R3 D1 ↔ R4 D0, D3 ↔ D3, and GND ↔ GND.
@@ -734,7 +734,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 6 — the WiFi AT channel (`slice06_at`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S6.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S6.
 >
 > Proves the mission-critical claim: the RA4M1 drives **SCI1**
 > (P501 = TX, P502 = RX, board-internal to the ESP32-S3) and the
@@ -811,7 +811,7 @@ Two rules for every upload, from the course's verified procedure:
 >
 > ### Slice 7 — PWM, the LED breathes (`slice07_breathe`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S7.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S7.
 >
 > Proves the GPT PWM driver: saw-wave PWM on **D6** at exactly 1 kHz
 > (PCLKD/1, `GTPR = 47999`, 48 000 duty steps) with a sine duty profile,
@@ -903,7 +903,7 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 8 — ADC, the chip senses (`slice08_adc`)
 >
-> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S8.
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `arduino/validation/`, S8.
 >
 > Proves the ADC140 driver: single-shot, software-triggered, blocking
 > reads on **A0** (raw + millivolts at 4 Hz) through the slice-4 SCI9
@@ -1018,7 +1018,7 @@ Two rules for every upload, from the course's verified procedure:
 >
 > All of them were deleted on 2026-10-20, so the commands in this
 > subsection cannot be repeated. The results stand as recorded. The current
-> Slice 9 check is `validation/` (S9, knock, `!`/`@`); its R4 image arms
+> Slice 9 check is `arduino/validation/` (S9, knock, `!`/`@`); its R4 image arms
 > the same knock and serves the same echo and ticks.
 
 **Slice binary:** `crates/test-firmware/src/bin/slice09_cdc.rs`. It prints a
@@ -1204,17 +1204,17 @@ fixed:
 - `Research/slice-09-research.md` keeps its original §10.1, §10.6 and §10.7
   statements, each followed by a dated correction.
 
-### All-in-one validation — Slices 1–9 (`validation/`)
+### All-in-one validation — Slices 1–9 (`arduino/validation/`)
 
 The validation pair re-proves Slices 1–9 on the existing bench without
 swapping firmware between slices. It has three parts:
 
-- `validation/r3-validator/r3-validator.ino`: the R3 controller.
-- `crates/test-firmware/src/bin/r4_validator.rs`: one R4 image built on
+- `arduino/validation/r3-validator/r3-validator.ino`: the R3 controller.
+- `crates/test-firmware/src/bin/r4_validator/main.rs`: one R4 image built on
   this HAL, with features `usb,uart-irq`.
-- `validation/validate.ps1`: the Windows host side. It also checks the two
-  slices only a PC can see: Slice 4 on the bridge monitor and Slice 9 on the
-  native USB port.
+- the `validate` CLI (`crates/validation`): the host side. It also checks
+  the two slices only a PC can see: Slice 4 on the bridge monitor and
+  Slice 9 on the native USB port.
 
 The R3 and R4 exchange framed requests (`STX` body `ETX`) at 9600 8N1 on
 SCI2. R4 replies contain only `A–Z`, `0–9` and spaces, while PC commands to
@@ -1251,24 +1251,26 @@ Flash, from the repo root. Upload the R3 while the R4's SCI2 TX is quiet:
 the R4 in bootloader, or already running `r4_validator`.
 
 ```powershell
-arduino-cli compile --fqbn arduino:avr:uno --build-path target/validation-r3-build validation/r3-validator
+arduino-cli compile --fqbn arduino:avr:uno --build-path target/validation-r3-build arduino/validation/r3-validator
 arduino-cli upload -p $uartPort --fqbn arduino:avr:uno --input-file target/validation-r3-build/r3-validator.ino.hex --verify
 arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file crates/test-firmware/r4_validator.bin
 ```
 
-Run, from the repo root. The script finds the R3 (2341:0043), the bridge
+Run, from the repo root. The CLI finds the R3 (2341:0043), the bridge
 (2341:1002) and the native port (2341:006D) by USB identity:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\validation\validate.ps1
+cargo run --release -p validation -- all
 ```
 
 R4 D2 is free/open: the push button is no longer part of the bench
 (AGENTS.md). The R3 acts as the Slice 2 button on the existing D3 line.
 
-`-SkipUsb` leaves out Slice 9 and the knock. Without the host script, open
-the R3 at 9600 and send `a` for S1–S8, or one letter per check (`?` lists
-them). Results go to `target/validation/`.
+`validate all --skip-usb` leaves out Slice 9 and the knock. Per-slice runs:
+`cargo run --release -p validation -- slices S2` (also `s4`, `usb`,
+`reset --single|--double`, `identify`). Without the CLI, open the R3 at
+9600 and send `a` for S1–S8, or one letter per check (`?` lists them).
+Results go to `target/validation/`.
 
 **Witnessed on WiFi, 2026-10-20:** 14/14 checks passed in one host run, on
 the HAL ported to `embedded-io` 0.7.1:

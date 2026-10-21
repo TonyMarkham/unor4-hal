@@ -7,11 +7,10 @@
 //! completion flags into usb-device events; usb-device owns request parsing.
 
 use core::cell::Cell;
-
 use usb_device::{
+    UsbDirection, UsbError,
     bus::{PollResult, UsbBus},
     endpoint::{EndpointAddress, EndpointType},
-    UsbDirection, UsbError,
 };
 
 // --- FIFO data ports (§27.2.4: CFIFO 0x14, D0FIFO 0x18, D1FIFO 0x1C)
@@ -88,7 +87,15 @@ fn trace(tag: u8, data: &[u8]) {
     let mut row = [0u8; 74];
     row[0] = tag;
     row[1] = data.len().min(64) as u8;
-    for (i, value) in [regs.intsts0.read().bits(), regs.cfifosel.read().bits(), regs.cfifoctr.read().bits(), regs.dcpctr.read().bits()].into_iter().enumerate() {
+    for (i, value) in [
+        regs.intsts0.read().bits(),
+        regs.cfifosel.read().bits(),
+        regs.cfifoctr.read().bits(),
+        regs.dcpctr.read().bits(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         row[2 + i * 2..4 + i * 2].copy_from_slice(&value.to_le_bytes());
     }
     let len = usize::from(row[1]);
@@ -100,7 +107,9 @@ fn trace(tag: u8, data: &[u8]) {
         let next = unsafe { base.add(5).read_volatile() } as usize;
         if count <= 48 && next < 48 {
             for (offset, byte) in row.into_iter().enumerate() {
-                unsafe { base.add(8 + next * 74 + offset).write_volatile(byte); }
+                unsafe {
+                    base.add(8 + next * 74 + offset).write_volatile(byte);
+                }
             }
             unsafe {
                 base.add(4).write_volatile((count + 1).min(48) as u8);
@@ -143,17 +152,30 @@ pub fn diagnostic_trace(index: usize) -> Option<[u8; 74]> {
     critical_section::with(|_| unsafe {
         let base = trace_base();
         for (offset, byte) in b"USB9".iter().enumerate() {
-            if base.add(offset).read_volatile() != *byte { return None; }
+            if base.add(offset).read_volatile() != *byte {
+                return None;
+            }
         }
         let count = usize::from(base.add(4).read_volatile());
         let next = usize::from(base.add(5).read_volatile());
-        if count > 48 || index >= count || next >= 48 { return None; }
-        let slot = if count == 48 { (next + index) % 48 } else { index };
+        if count > 48 || index >= count || next >= 48 {
+            return None;
+        }
+        let slot = if count == 48 {
+            (next + index) % 48
+        } else {
+            index
+        };
         let mut row = [0; 74];
         for (offset, byte) in row.iter_mut().enumerate() {
             *byte = base.add(8 + slot * 74 + offset).read_volatile();
         }
-        (row[1] <= 64 && matches!(row[0], b'S' | b'W' | b'F' | b'E' | b'T' | b'P' | b'R' | b'O')).then_some(row)
+        (row[1] <= 64
+            && matches!(
+                row[0],
+                b'S' | b'W' | b'F' | b'E' | b'T' | b'P' | b'R' | b'O'
+            ))
+        .then_some(row)
     })
 }
 
@@ -293,7 +315,8 @@ impl Usbfs {
         critical_section::with(|_| {
             let regs = Self::regs();
             regs.intenb0.write(|w| unsafe { w.bits(0) });
-            regs.syscfg.modify(|r, w| unsafe { w.bits(r.bits() & !SYSCFG_DPRPU) });
+            regs.syscfg
+                .modify(|r, w| unsafe { w.bits(r.bits() & !SYSCFG_DPRPU) });
             // Arduino bootloader handoff ABI, NOT a USBFS hardware fact:
             // installed ArduinoCore-renesas 1.6.0 cores/arduino/boot.h
             // specifies 0x07738135 at VBTBKR[0..4]. Manual §11.2.6
@@ -309,7 +332,9 @@ impl Usbfs {
             system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK) });
             system.vbtcr1.modify(|r, w| unsafe { w.bits(r.bits() | 1) });
             for _ in 0..100_000 {
-                if system.vbtsr.read().bits() & (1 << 4) != 0 { break; }
+                if system.vbtsr.read().bits() & (1 << 4) != 0 {
+                    break;
+                }
             }
             let valid = system.vbtsr.read().bits() & (1 << 4) != 0;
             if !valid {
@@ -361,7 +386,11 @@ impl Usbfs {
     /// (§27.3.7 (1): confirm CURPIPE read-back, then FRDY = 1).
     fn select_cfifo(&self, isel_write: bool) -> Result<(), UsbError> {
         let regs = Self::regs();
-        let sel = if isel_write { FIFOSEL_ISEL | (1 << 10) } else { 0 };
+        let sel = if isel_write {
+            FIFOSEL_ISEL | (1 << 10)
+        } else {
+            0
+        };
         regs.cfifosel.write(|w| unsafe { w.bits(sel) });
         for _ in 0..1_000 {
             if regs.cfifosel.read().bits() & 0x043F == sel
@@ -481,10 +510,10 @@ impl Usbfs {
                 // OUT/IN) in `UsbDevice::build` — exactly the mapping we
                 // want, so a pinned index 0 is accepted (anything else
                 // stays a caller error).
-                if let Some(a) = ep_addr {
-                    if a.index() != 0 || a.direction() != ep_dir {
-                        return Err(UsbError::InvalidEndpoint);
-                    }
+                if let Some(a) = ep_addr
+                    && (a.index() != 0 || a.direction() != ep_dir)
+                {
+                    return Err(UsbError::InvalidEndpoint);
                 }
                 let mut map = self.ep_pipe.get();
                 let direction = usize::from(ep_dir == UsbDirection::In);
@@ -511,12 +540,17 @@ impl Usbfs {
                 let free = |p: u8| !map[0].contains(&(p as i8)) && !map[1].contains(&(p as i8));
                 let pipe = if let Some(address) = ep_addr {
                     let pipe = address.index() as u8;
-                    if address.direction() != ep_dir || !(class_lo..=class_hi).contains(&pipe) || !free(pipe) {
+                    if address.direction() != ep_dir
+                        || !(class_lo..=class_hi).contains(&pipe)
+                        || !free(pipe)
+                    {
                         return Err(UsbError::InvalidEndpoint);
                     }
                     pipe
                 } else {
-                    (class_lo..=class_hi).find(|&p| free(p)).ok_or(UsbError::EndpointOverflow)?
+                    (class_lo..=class_hi)
+                        .find(|&p| free(p))
+                        .ok_or(UsbError::EndpointOverflow)?
                 };
                 // MXPS limits (§27.2.29 MXPS[8:0] table).
                 // Hardware pipe 1/2 can hold larger packets for other
@@ -544,8 +578,7 @@ impl Usbfs {
                 // fresh pipe is NAK by reset).
                 regs.pipecfg
                     .write(|w| unsafe { w.bits(type_bits | dir_bit | pipe as u16) });
-                regs.pipemaxp
-                    .write(|w| unsafe { w.bits(max_packet_size) });
+                regs.pipemaxp.write(|w| unsafe { w.bits(max_packet_size) });
                 regs.pipeperi.write(|w| unsafe { w.bits(0) });
                 self.pipe_ctr(pipe)
                     .modify(|_, w| unsafe { w.bits(PID_NAK) });
@@ -578,7 +611,12 @@ impl Usbfs {
         regs.d0fifosel.write(|w| unsafe { w.bits(0) });
         regs.d1fifosel.write(|w| unsafe { w.bits(0) });
         for pipe in 1..=9 {
-            if self.ep_pipe.get().iter().any(|map| map.contains(&(pipe as i8))) {
+            if self
+                .ep_pipe
+                .get()
+                .iter()
+                .any(|map| map.contains(&(pipe as i8)))
+            {
                 // Initialize allocated buffers and DATA0 while the bus
                 // reset holds PID NAK (§27.2.30, Table 27.9).
                 let ctr = self.pipe_ctr(pipe);
@@ -624,9 +662,8 @@ impl Usbfs {
             if control_status_in(ctsq, buf.is_empty(), self.auto_address.get()) {
                 self.status_in_pending.set(true);
                 if !self.auto_address.get() {
-                    regs.dcpctr.modify(|r, w| unsafe {
-                        w.bits((r.bits() & !3) | PID_BUF | DCP_CCPL)
-                    });
+                    regs.dcpctr
+                        .modify(|r, w| unsafe { w.bits((r.bits() & !3) | PID_BUF | DCP_CCPL) });
                 }
                 return Ok(0);
             }
@@ -640,11 +677,12 @@ impl Usbfs {
             if buf.len() > mps {
                 return Err(UsbError::BufferOverflow);
             }
-            if let Err(error) = self.select_cfifo(true) {
-                #[cfg(feature = "usb-trace")]
+            let selected = self.select_cfifo(true);
+            #[cfg(feature = "usb-trace")]
+            if selected.is_err() {
                 trace(b'E', &[]);
-                return Err(error);
             }
+            selected?;
             #[cfg(feature = "usb-trace")]
             trace(b'F', &[]);
             unsafe {
@@ -668,11 +706,11 @@ impl Usbfs {
             }
             unsafe {
                 // §27.2.4 Table 27.5: little-endian 16-bit FIFO access.
-                let mut pairs = buf.chunks_exact(2);
-                for pair in &mut pairs {
-                    regs.cfifo().write(|w| w.bits(u16::from_le_bytes([pair[0], pair[1]])));
+                let (pairs, remainder) = buf.as_chunks::<2>();
+                for pair in pairs {
+                    regs.cfifo().write(|w| w.bits(u16::from_le_bytes(*pair)));
                 }
-                if let Some(&byte) = pairs.remainder().first() {
+                if let Some(&byte) = remainder.first() {
                     regs.cfifol().write(|w| w.bits(byte));
                 }
                 if buf.len() < mps {
@@ -680,9 +718,8 @@ impl Usbfs {
                     // full packet auto-transmits on its last byte.
                     CFIFOCTR.write_volatile(CTR_BVAL);
                 }
-                regs.dcpctr.modify(|_, w| {
-                    w.bits(regs.dcpctr.read().bits() & !0b11 | PID_BUF)
-                });
+                regs.dcpctr
+                    .modify(|_, w| w.bits(regs.dcpctr.read().bits() & !0b11 | PID_BUF));
             }
             self.in_pending.set(self.in_pending.get() | 1);
             #[cfg(feature = "usb-trace")]
@@ -745,12 +782,14 @@ impl Usbfs {
                 buf[5] = idx[1];
                 buf[6] = len[0];
                 buf[7] = len[1];
-                regs.intsts0.write(|w| unsafe { w.bits(INTSTS0_CLEAR_VALID) });
+                regs.intsts0
+                    .write(|w| unsafe { w.bits(INTSTS0_CLEAR_VALID) });
                 self.in_pending.set(self.in_pending.get() & !1);
                 self.status_in_pending.set(false);
                 self.status_out_pending.set(false);
                 self.status_out_ready.set(false);
-                self.auto_address.set(req == 0x0500 && idx == [0, 0] && len == [0, 0]);
+                self.auto_address
+                    .set(req == 0x0500 && idx == [0, 0] && len == [0, 0]);
                 // SETUP is in request registers, NOT the FIFO. DCP BCLR
                 // is legal without FRDY (§27.2.6), unlike a FIFO read.
                 regs.cfifosel.write(|w| unsafe { w.bits(0) });
@@ -800,7 +839,11 @@ impl Usbfs {
         let regs = Self::regs();
         // Both control register layouts share PID/PBUSY/SQCLR. Their
         // addresses are §27.2.25 (DCP) and §27.2.30 (pipes 1..9).
-        let address = if pipe == 0 { 0x4009_0060 } else { 0x4009_0070 + 2 * usize::from(pipe - 1) };
+        let address = if pipe == 0 {
+            0x4009_0060
+        } else {
+            0x4009_0070 + 2 * usize::from(pipe - 1)
+        };
         let ctr = address as *mut u16;
         let read = || unsafe { ctr.read_volatile() };
         let write = |bits| unsafe { ctr.write_volatile(bits) };
@@ -819,9 +862,13 @@ impl Usbfs {
         if pipe != 0 && previous & 2 != 0 {
             // USB CLEAR_FEATURE(ENDPOINT_HALT) also resets DATA0.
             for _ in 0..10_000 {
-                if read() & (1 << 5) == 0 { break; }
+                if read() & (1 << 5) == 0 {
+                    break;
+                }
             }
-            if read() & (1 << 5) != 0 { return; }
+            if read() & (1 << 5) != 0 {
+                return;
+            }
             write(read() | (1 << 8));
         }
         if ep_addr.is_out() && (pipe != 0 || regs.intsts0.read().bits() & 7 == CTSQ_WRITE_DATA) {
@@ -860,7 +907,8 @@ impl Usbfs {
         let ctsq = i0 & 0b111;
         // The captured VBSTS/DVSQ remain valid for this poll. Clear the
         // VBUS/resume event latches so an optional bell can be rearmed.
-        regs.intsts0.write(|w| unsafe { w.bits(!((1 << 15) | (1 << 14))) });
+        regs.intsts0
+            .write(|w| unsafe { w.bits(!((1 << 15) | (1 << 14))) });
 
         // Lazy connect: VBUS may appear after enable() ran without it.
         if !self.connected.get() && i0 & INTSTS0_VBSTS != 0 {
@@ -905,7 +953,15 @@ impl Usbfs {
         {
             let state = (i0 & 0x7F) | ((raw_brdy & 1) << 8) | ((raw_bemp & 1) << 9);
             if self.last_trace_state.replace(state) != state {
-                trace(b'P', &[raw_brdy as u8, (raw_brdy >> 8) as u8, raw_bemp as u8, (raw_bemp >> 8) as u8]);
+                trace(
+                    b'P',
+                    &[
+                        raw_brdy as u8,
+                        (raw_brdy >> 8) as u8,
+                        raw_bemp as u8,
+                        (raw_bemp >> 8) as u8,
+                    ],
+                );
             }
         }
         // ep_out: only allocated OUT pipes (IN pipes signal completion
@@ -928,7 +984,9 @@ impl Usbfs {
                 self.status_out_ready.set(true);
             }
         }
-        if self.status_out_ready.get() { ep_out |= 1; }
+        if self.status_out_ready.get() {
+            ep_out |= 1;
+        }
 
         // Finish the IN data packet before enabling its OUT status.
         if ep_in_complete & 1 != 0 {
@@ -936,9 +994,8 @@ impl Usbfs {
         }
         if ep_setup == 0 && ctsq == CTSQ_READ_STATUS {
             self.status_out_pending.set(true);
-            regs.dcpctr.modify(|r, w| unsafe {
-                w.bits((r.bits() & !3) | PID_BUF | DCP_CCPL)
-            });
+            regs.dcpctr
+                .modify(|r, w| unsafe { w.bits((r.bits() & !3) | PID_BUF | DCP_CCPL) });
         }
 
         if ep_out != 0 || ep_in_complete != 0 || ep_setup != 0 {
@@ -975,7 +1032,9 @@ impl UsbBus for Usbfs {
         max_packet_size: u16,
         interval: u8,
     ) -> Result<EndpointAddress, UsbError> {
-        critical_section::with(|_| self.alloc_ep(direction, address, kind, max_packet_size, interval))
+        critical_section::with(|_| {
+            self.alloc_ep(direction, address, kind, max_packet_size, interval)
+        })
     }
 
     fn enable(&mut self) {
@@ -1018,7 +1077,3 @@ impl UsbBus for Usbfs {
         critical_section::with(|_| Usbfs::poll(self))
     }
 }
-
-
-
-

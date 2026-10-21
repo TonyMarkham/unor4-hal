@@ -2,6 +2,7 @@
 members            = [
     "crates/unor4-hal",
     "crates/test-firmware",
+    "crates/validation",
 ]
 default-members    = ["crates/unor4-hal"]
 resolver           = "3"
@@ -28,7 +29,15 @@ ra4m1              = { version = "0.2.0" }
 usb-device         = { version = "0.3.2" }
 usbd-serial        = { version = "0.2.2" }
 
-unor4-hal = { path = "crates/unor4-hal" }
+# Host-side validation tool only (crates/validation, publish = false).
+# clap 4.6.7 MIT OR Apache-2.0; regex 1.13.1 MIT OR Apache-2.0;
+# serialport 4.10.1 MPL-2.0 — owner-approved audit exception for the
+# unpublished host tool (AGENTS.md, Current grants, 2026-10-20).
+clap               = { version = "4.6.7", features = ["derive"] }
+regex              = { version = "1.13.1" }
+serialport         = { version = "4.10.1" }
+
+unor4-hal          = { path = "crates/unor4-hal" }
 
 [profile.release]
 opt-level          = 3    # speed matters on a 48 MHz chip

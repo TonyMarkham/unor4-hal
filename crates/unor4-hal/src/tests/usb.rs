@@ -1,9 +1,14 @@
 //! Host regressions for USB integration and the measured EP0 status bug.
 
-use core::sync::atomic::{AtomicBool, Ordering};
 use crate::usb::{CdcAcm, Error, UsbWake, bus::control_status_in};
+use core::sync::atomic::{AtomicBool, Ordering};
 use embedded_io::{Read, Write};
-use usb_device::{UsbDirection, UsbError, bus::{PollResult, UsbBus, UsbBusAllocator}, device::{UsbDeviceBuilder, UsbVidPid}, endpoint::{EndpointAddress, EndpointType}};
+use usb_device::{
+    UsbDirection, UsbError,
+    bus::{PollResult, UsbBus, UsbBusAllocator},
+    device::{UsbDeviceBuilder, UsbVidPid},
+    endpoint::{EndpointAddress, EndpointType},
+};
 use usbd_serial::SerialPort;
 
 struct MockBus {
@@ -14,28 +19,51 @@ struct MockBus {
 
 impl MockBus {
     fn allocator(error: UsbError) -> UsbBusAllocator<Self> {
-        UsbBusAllocator::new(Self { next: [1, 1], enabled: AtomicBool::new(false), error })
+        UsbBusAllocator::new(Self {
+            next: [1, 1],
+            enabled: AtomicBool::new(false),
+            error,
+        })
     }
 }
 
 impl UsbBus for MockBus {
-    fn alloc_ep(&mut self, direction: UsbDirection, address: Option<EndpointAddress>, _: EndpointType, _: u16, _: u8) -> Result<EndpointAddress, UsbError> {
-        if let Some(address) = address { return Ok(address); }
+    fn alloc_ep(
+        &mut self,
+        direction: UsbDirection,
+        address: Option<EndpointAddress>,
+        _: EndpointType,
+        _: u16,
+        _: u8,
+    ) -> Result<EndpointAddress, UsbError> {
+        if let Some(address) = address {
+            return Ok(address);
+        }
         let index = usize::from(direction == UsbDirection::In);
         let address = EndpointAddress::from_parts(self.next[index], direction);
         self.next[index] += 1;
         Ok(address)
     }
-    fn enable(&mut self) { self.enabled.store(true, Ordering::Relaxed); }
+    fn enable(&mut self) {
+        self.enabled.store(true, Ordering::Relaxed);
+    }
     fn reset(&self) {}
     fn set_device_address(&self, _: u8) {}
-    fn write(&self, _: EndpointAddress, _: &[u8]) -> Result<usize, UsbError> { Err(self.error) }
-    fn read(&self, _: EndpointAddress, _: &mut [u8]) -> Result<usize, UsbError> { Err(self.error) }
+    fn write(&self, _: EndpointAddress, _: &[u8]) -> Result<usize, UsbError> {
+        Err(self.error)
+    }
+    fn read(&self, _: EndpointAddress, _: &mut [u8]) -> Result<usize, UsbError> {
+        Err(self.error)
+    }
     fn set_stalled(&self, _: EndpointAddress, _: bool) {}
-    fn is_stalled(&self, _: EndpointAddress) -> bool { false }
+    fn is_stalled(&self, _: EndpointAddress) -> bool {
+        false
+    }
     fn suspend(&self) {}
     fn resume(&self) {}
-    fn poll(&self) -> PollResult { PollResult::None }
+    fn poll(&self) -> PollResult {
+        PollResult::None
+    }
 }
 
 #[test]

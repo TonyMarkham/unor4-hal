@@ -1,0 +1,24 @@
+[windows]
+set shell := ["pwsh.exe", "-NoLogo", "-Command"]
+
+[windows]
+build:
+    cargo build --release --features usb,uart-irq
+
+[windows]
+build-minima:
+    cargo build --release --no-default-features --features minima,usb,uart-irq
+
+[windows]
+check:
+    cargo check --release --features usb,uart-irq
+    cargo check --release --no-default-features --features minima,usb,uart-irq
+
+[windows]
+clippy:
+    cargo clippy --release --features usb,uart-irq -- -D warnings
+    cargo clippy --release --no-default-features --features minima,usb,uart-irq -- -D warnings
+
+[windows]
+image:
+    cargo objcopy --release --features usb,uart-irq --bin r4_validator -- -O binary ../../target/r4_validator.bin
