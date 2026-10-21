@@ -4,6 +4,8 @@ version            = { workspace = true }
 edition            = { workspace = true }
 license            = { workspace = true }
 description        = "Independent HAL for the Arduino UNO R4 (Renesas RA4M1)"
+repository         = "https://github.com/TonyMarkham/unor4-hal"
+readme             = "README.md"
 
 [dependencies]
 cortex-m           = { workspace = true, features = ["critical-section-single-core"] }

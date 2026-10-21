@@ -74,3 +74,14 @@ cycles** — with the log intact.
 hardware-unverified** — no Minima hardware exists in this project.
 
 [0.1.0]: https://github.com/TonyMarkham/unor4-hal/releases/tag/v0.1.0
+
+## [0.1.1] - 2026-10-21
+
+### Added
+
+- Crate packaging metadata: `repository` link and a crate-facing `README.md`
+  (`crates/unor4-hal/README.md`), so crates.io renders them. Published
+  versions are immutable, so 0.1.0's page cannot gain these — 0.1.1 exists
+  to carry them; no code changed.
+
+[0.1.1]: https://github.com/TonyMarkham/unor4-hal/releases/tag/v0.1.1
