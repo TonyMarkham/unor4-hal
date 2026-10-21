@@ -42,9 +42,10 @@ Citations:
 ## What the slice is
 
 `dflash.rs`: the RA4M1's 8 KB data flash with `read(offset, buf)`,
-`write(offset, buf)` (program-only bits), `erase()` — HalSpec §5.8.
-Done-when (Plan.md): a boot counter survives power cycles — 100 power
-cycles with zero corruption, plus an erase+rewrite verified byte-exact.
+`write(offset, buf)` (program-only, **once per erase** — §6), `erase()`
+— HalSpec §5.8. Done-when (Plan.md, amended 2026-10-21): a boot counter
+survives power cycles — ~20 power cycles with zero corruption, plus an
+erase+rewrite verified byte-exact.
 
 **Bench impact: none.** Research/slice-09-research.md §8 already records
 that slice 10 needs no wires.
@@ -220,23 +221,6 @@ in DF P/E mode (the driver's `set_fisr` step).
 - **Timeouts:** scale the FSP way — worst-case µs × ICLK_MHz / 6 loop
   iterations. ICLK = 48 MHz via `Clocks::sysclk()`.
 
-### 5.2 Erased-state semantics: the manual disagrees with itself
-
-Two statements in Rev 1.10 pull in opposite directions:
-
-- §44.2 Table 44.1: "Value after erasure: **FFh**" (data flash column),
-  and §44.14.2 says erased cells read all 1s.
-- §44.7 Table 44.8 (blank-check row): *"Results of reading from data
-  flash memory to which nothing is written after erasure are **not
-  guaranteed**, so use blank checking to confirm that writing to memory
-  has not proceeded after erasure."*
-
-The conservative reading governs the design: **never infer state from a
-read of erased cells.** Erasure verification and free-slot detection use
-the blank-check command (`FCR = 0x83` → `FSTATR00.BCERR0`); the
-erase+rewrite byte-exact check compares only *programmed* bytes against
-the expected pattern, and confirms erasure via blank check.
-
 ### 5.1 Resolved (owner, 2026-10-21): RAM execution during mode transitions
 
 FSP places `write_fpmcr`, `pe_mode_exit`, `process_command`, and
@@ -253,6 +237,23 @@ not to be disturbed during mode switches; the vendor-proven configuration
 is the safe default and can be relaxed later with evidence, not before.
 The open question is closed; the linker section is part of the slice's
 test-firmware work.
+
+### 5.2 Erased-state semantics: the manual disagrees with itself
+
+Two statements in Rev 1.10 pull in opposite directions:
+
+- §44.2 Table 44.1: "Value after erasure: **FFh**" (data flash column),
+  and §44.14.2 says erased cells read all 1s.
+- §44.7 Table 44.8 (blank-check row): *"Results of reading from data
+  flash memory to which nothing is written after erasure are **not
+  guaranteed**, so use blank checking to confirm that writing to memory
+  has not proceeded after erasure."*
+
+The conservative reading governs the design: **never infer state from a
+read of erased cells.** Erasure verification and free-slot detection use
+the blank-check command (`FCR = 0x83` → `FSTATR00.BCERR0`); the
+erase+rewrite byte-exact check compares only *programmed* bytes against
+the expected pattern, and confirms erasure via blank check.
 
 ## 6. API shape for `dflash.rs` (HalSpec §5.8 + decisions for the owner)
 
@@ -308,7 +309,7 @@ test-firmware work.
    `FFh`), program a known pattern byte-by-byte, read back and compare;
    erase again and blank-check.
 3. **Boot counter** (done-when item 1): append-log counter (§8) — each
-   boot programs one fresh slot, zero erases; 100 power cycles with
+   boot programs one fresh slot, zero erases; ~20 power cycles with
    zero corruption.
 4. **Regression:** every check lands in the validation pair (§8) so
    `validate all` re-proves it.
@@ -352,17 +353,17 @@ test-firmware work.
   once-per-erase rule (§44.15.3) makes "clear one more bit per boot"
   illegal — instead the counter is an **append log**: each boot programs
   one new byte in a fresh slot of a scratch page; when the page fills,
-  erase it and restart (logging the wrap). 100 boots consume 100 of the
+  erase it and restart (logging the wrap). The done-when's ~20 boots consume 20 of the
   1024 slots with **zero erases** against the 100,000 P/E budget. Free
   slots are found with the blank-check command, not by reading for
   `0xFF` (§5.2). The counter lives in the validator binary, not the
   crate.
 - **README record:** one row in the All-in-one check table; build/run
   commands unchanged.
-- **Plan.md note:** the Slice 10 entry still names a `slice10_remember`
-  binary — written before the 2026-10-20 validation-pair amendment. It
-  needs the same owner amendment the other slices got when the slice
-  starts.
+- **Plan.md note:** — **Resolved 2026-10-21:** the stale
+  `slice10_remember` binary line was dropped from Plan.md's Slice 10
+  entry (owner amendment); the entry now points at this file's §8 for
+  the validation-pair checks.
 
 ## 9. Open questions (candidates for OQ-10 in HalSpec)
 
