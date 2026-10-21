@@ -246,7 +246,10 @@ let n = serial.read(&mut buf)?;           // impl embedded-io Read (blocking)
 ### 5.8 Data flash (`dflash.rs`)
 
 - The RA4M1's 8 KB data flash as byte-granular (or 1KB-block-erased) storage:
-  `read(offset, buf)`, `write(offset, buf)` (program-only bits), `erase()`.
+  `read(offset, buf)`, `write(offset, buf)` (program-only, **once per
+  erase** — the datasheet's flash characteristics note that overwriting
+  without an erase is prohibited; amended 2026-10-21, see
+  `Research/slice-10-research.md` §5.2), `erase()`.
 - Sufficient for storing one WiFi credential set. The AT-command
   provisioning flow (credential-storage option C in the course repo's
   AGENTS.md) lives in the app layer.

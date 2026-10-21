@@ -220,11 +220,16 @@ hardware-unverified. Details and commands: README, Slice 9.
 ### Slice 10 — Data flash → the board remembers
 
 `dflash.rs`: 8 KB data flash read/write/erase with wear-minimal API.
-Binary: `slice10_remember.rs` — increments a persisted counter each boot.
+(Amended 2026-10-21, owner: the `slice10_remember` binary line is
+dropped — the binary was never created, and the 2026-10-20
+validation-pair amendment governs: the slice's checks land in the pair
+per `Research/slice-10-research.md` §8.)
 
 **Observable:** the printed boot count increments across power cycles —
 unplug, replug, the number remembers.
-**Done when:** 100 power cycles with zero corruption, and an erase+rewrite
+**Done when:** ~20 power cycles with zero corruption (owner amendment,
+2026-10-21: the original 100 were reduced — power cycling is manual by
+necessity and the owner will witness roughly 20), and an erase+rewrite
 cycle verified byte-exact.
 
 ## Rules that hold across all slices
