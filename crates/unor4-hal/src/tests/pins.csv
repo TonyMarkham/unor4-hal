@@ -1,6 +1,6 @@
-# Golden pin table (HalSpec §7.2) — the cross-check copy of both boards'
+# Golden pin table — the cross-check copy of both boards'
 # header-pin maps, transcribed from the Arduino core's board tables
-# (cross-check data only, HalSpec §1 — never copied code):
+# (cross-check data only — never copied code):
 #
 #   arduino/ArduinoCore-renesas @ 6546df0 (2023-11-02)
 #     variants/MINIMA/variant.cpp     g_pin_cfg entries 0-19

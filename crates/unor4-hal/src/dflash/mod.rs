@@ -3,7 +3,7 @@
 //!
 //! Hardware facts, Renesas RA4M1 manual R01UH0887EJ0110 **Rev 1.10**
 //! and datasheet R01DS0355EJ0110 Rev 1.10 unless the source is named
-//! otherwise; the verification chain is `Research/slice-10-research.md`:
+//! otherwise:
 //! - 8 KB in eight 1-KB erase blocks, programmed one byte at a time;
 //!   read at `4010 0000h–4010 1FFFh`, programmed and erased through the
 //!   P/E space `FE00 0000h–FE00 1FFFh` (§44.2 Tables 44.1/44.3). Every

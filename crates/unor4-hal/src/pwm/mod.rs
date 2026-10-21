@@ -65,11 +65,11 @@
 //!   PORT3 Table 19.10, PORT4 Table 19.12). D6 — WiFi = P111 →
 //!   `GTIOC3A` (GPT163), Minima = P106 → `GTIOC0B` (GPT320). The full
 //!   six-pin map, cross-checked entry-for-entry against the Arduino
-//!   core's `pinmux.inc` (behavioral reference only), lives in
-//!   `Research/slice-07-research.md`.
+//!   core's `pinmux.inc` (behavioral reference only), is locked by the
+//!   golden test in `src/tests/pwm.rs`.
 //!
 //! The public trait is `embedded-hal` 1.0's
-//! [`embedded_hal::pwm::SetDutyCycle`] (HalSpec §6, amended: the
+//! [`embedded_hal::pwm::SetDutyCycle`] (the
 //! multi-channel `Pwm` trait is embedded-hal 0.2 legacy and does not
 //! exist in 1.0). Duty is `u16`, so the period is capped at 65 535
 //! ticks — [`calc_period`] enforces that, which also keeps every

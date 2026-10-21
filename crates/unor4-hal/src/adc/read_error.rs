@@ -5,7 +5,7 @@
 pub enum ReadError {
     /// `ADCSR.ADST` did not self-clear within the poll bound. The
     /// conversion takes ~1.2–1.6 µs at this crate's clocks (manual
-    /// §35.3.6, worked values in `Research/slice-08-research.md` §5),
+    /// §35.3.6),
     /// so the bound is thousands of times the expected wait — reaching
     /// it means the unit never ran, not that the wait was short.
     Timeout,

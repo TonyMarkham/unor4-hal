@@ -8,8 +8,8 @@
 //! flash peripheral at all. Every other offset below is from the FSP
 //! CMSIS device header `R7FA4M1AB.h` (`R_FACI_LP_Type`, BSD-3-Clause),
 //! and every sequence from FSP `r_flash_lp.c` (behavioral reference) —
-//! raw `volatile` access under HalSpec §4 rule 5, the `PWPR` precedent.
-//! The full evidence trail is `Research/slice-10-research.md` §2–§5.
+//! raw `volatile` access, the `PWPR` precedent for registers the PAC
+//! does not model. Nothing is transcribed from FSP.
 
 /// `R_FACI_LP` block base (manual Rev 1.10 §44.4.3 via `DFLCTL` at
 /// `407E C090h`; FSP `R_FACI_LP_BASE = 0x407EC000`).

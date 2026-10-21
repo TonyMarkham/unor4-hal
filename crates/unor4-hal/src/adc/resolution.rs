@@ -7,7 +7,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Resolution {
     /// 12-bit conversion — right-justified in bits 11:0. The hardware
-    /// reset value, and HalSpec §5.7's default.
+    /// reset value, and the driver's default.
     Bits12,
     /// 14-bit conversion — right-justified in bits 13:0. The unit's
     /// native resolution (§35.1 Table 35.1).

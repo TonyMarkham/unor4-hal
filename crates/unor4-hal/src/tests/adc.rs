@@ -1,7 +1,7 @@
 //! Host tests for the ADC module — the golden channel table (a
 //! hardware fact from manual §19 Tables 19.5/19.6 + the datasheet pin
-//! tables, cross-checked against the Arduino core's `pinmux.inc`; see
-//! `Research/slice-08-research.md` §3) and the scan-time calculator
+//! tables, cross-checked against the Arduino core's `pinmux.inc`) and
+//! the scan-time calculator
 //! (manual §35.3.6 Table 35.10's arithmetic).
 
 use crate::adc::{Channel, Resolution, ScanTimeParams, calc_scan_time};

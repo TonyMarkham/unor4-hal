@@ -1,4 +1,4 @@
-//! Golden pin-table cross-check (HalSpec §7.2): the map compiled into
+//! Golden pin-table cross-check: the map compiled into
 //! the crate must equal the transcription of the Arduino core's board
 //! tables. This is the test that would have caught the existing HAL's
 //! docs.rs trap automatically.
@@ -13,7 +13,8 @@ use crate::gpio::PORT_PINS;
 
 /// The checked-in transcription, living next to the crate manifest:
 /// `pins.csv`, transcribed from `variants/MINIMA/variant.cpp` and
-/// `variants/UNOWIFIR4/variant.cpp` (cross-check data, HalSpec §1).
+/// `variants/UNOWIFIR4/variant.cpp` (cross-check data, never copied
+/// code).
 const GOLDEN: &str = include_str!("pins.csv");
 
 /// One parsed row: `(board, pin name, port letter, pin index)`.

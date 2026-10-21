@@ -2,7 +2,7 @@
 name               = "unor4-hal"
 version            = { workspace = true }
 edition            = { workspace = true }
-license            = "MIT OR Apache-2.0"
+license            = { workspace = true }
 description        = "Independent HAL for the Arduino UNO R4 (Renesas RA4M1)"
 
 [dependencies]
@@ -10,8 +10,6 @@ cortex-m           = { workspace = true, features = ["critical-section-single-co
 critical-section   = { workspace = true }
 embedded-hal       = { workspace = true }
 ra4m1              = { workspace = true }
-
-# `uart-irq` only: the shared-bus-style trait impls on the IRQ UART.
 embedded-hal-nb    = { workspace = true, optional = true }
 embedded-io        = { workspace = true, optional = true }
 nb                 = { workspace = true, optional = true }
@@ -19,17 +17,17 @@ usb-device         = { workspace = true, optional = true }
 usbd-serial        = { workspace = true, optional = true }
 
 [features]
-# Board pin maps (HalSpec §3): exactly one must be selected. `wifi` is
+# Board pin maps: exactly one must be selected. `wifi` is
 # the default so plain `cargo doc`/docs.rs shows the board this project
 # uses. Both-at-once and neither are compile errors (see src/lib.rs).
-default  = ["wifi"]
-minima   = []
-wifi     = []
+default            = ["wifi"]
+minima             = []
+wifi               = []
 # IRQ-mode UART (Slice 5): ring buffers served by SCI interrupts linked
 # through `intc`. Pulls the serial trait crates (license-audited,
 # MIT OR Apache-2.0 — see README).
-uart-irq = ["dep:embedded-hal-nb", "dep:embedded-io", "dep:nb"]
+uart-irq           = ["dep:embedded-hal-nb", "dep:embedded-io", "dep:nb"]
 # USB device (Slice 9): the USBFS `usb-device` bus adapter + CDC-ACM
-# wrapper. Opt-in per HalSpec §3; see `usb/mod.rs` for the mux rules.
-usb      = ["dep:usb-device", "dep:usbd-serial", "dep:embedded-io"]
-usb-trace = ["usb"]
+# wrapper. Opt-in; see `usb/mod.rs` for the mux rules.
+usb                = ["dep:usb-device", "dep:usbd-serial", "dep:embedded-io"]
+usb-trace          = ["usb"]

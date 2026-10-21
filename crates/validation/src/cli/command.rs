@@ -50,7 +50,7 @@ pub enum Command {
         /// resetting.
         #[arg(long)]
         watch: Option<u64>,
-        /// With --watch: boot events needed to pass (Plan.md: ~20).
+        /// With --watch: boot events needed to pass (the done-when: ~20).
         #[arg(long, default_value_t = 20)]
         min_boots: usize,
     },

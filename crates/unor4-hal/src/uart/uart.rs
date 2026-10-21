@@ -26,7 +26,7 @@ pub(crate) const PSEL_SCI9: u8 = 0x05;
 /// `RXD1/MISO1/SCL1` on P502 both sit at `PSEL[4:0] = 00101b`. Same
 /// odd-class value as SCI9 (Slice 4 hardware-proven); FSP's
 /// `IOPORT_PERIPHERAL_SCI1_3_5_7_9 = 0x05` and the Arduino core's
-/// `SCI_ODD_CFG` decode agree (see `Research/slice-06-research.md`).
+/// `SCI_ODD_CFG` decode agree.
 pub(crate) const PSEL_SCI1: u8 = 0x05;
 
 /// One claimed SCI channel, running in polling mode (8N1).
@@ -68,8 +68,8 @@ impl Uart<ra4m1::SCI9> {
     /// Claims SCI9 on the board's internal monitor line: **TX = P109**,
     /// **RX = P110**. On the WiFi board these are not header pins — they
     /// run through the level translator to the ESP32-S3, whose bridge
-    /// firmware forwards the line to the board's own USB monitor port
-    /// (Limitations.md, "phone line 2"). On the Minima the same chip
+    /// firmware forwards the line to the board's own USB monitor port.
+    /// On the Minima the same chip
     /// pins *are* header D11/D12 — pass `pins.d11`/`pins.d12`.
     ///
     /// Consumes the PAC's `SCI9` (exactly-once claim, like everything
@@ -95,8 +95,8 @@ impl Uart<ra4m1::SCI9> {
 
 impl Uart<ra4m1::SCI1> {
     /// Claims SCI1 on the board's internal WiFi AT line: **TX = P501**,
-    /// **RX = P502**, wired board-internal to the ESP32-S3 (Limitations.md,
-    /// the phone-line table). Not header pins on either board: on the
+    /// **RX = P502**, wired board-internal to the ESP32-S3. Not header
+    /// pins on either board: on the
     /// Minima the same chip pins sit on the SWD connector (Arduino core
     /// `variants/MINIMA/variant.cpp`: "TX on SWD connector" / "RX on SWD
     /// connector"). The ESP32-S3 side runs the bridge firmware's AT

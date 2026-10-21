@@ -31,7 +31,7 @@
 //!   32 base, 16 with `SEMR.BGDM`, 8 with `BGDM + ABCS`, multiplied by 4
 //!   per `SMR.CKS` step. [`calc_baud`] searches a subset of the table
 //!   in Renesas FSP's `r_sci_uart.c` (BSD-3-Clause — behavioral
-//!   cross-check data only, HalSpec §1, never transcribed into the
+//!   cross-check data only, never transcribed into the
 //!   crate) with FSP's error formula; FSP additionally considers
 //!   undershooting candidates via absolute error, so its loop order
 //!   differs — for the shipped bauds the results coincide. FSP's
@@ -52,9 +52,9 @@
 //!   as the `PFS.PSEL` payload. Cross-checked against the Arduino core,
 //!   which routes every `pinmux.inc` entry marked `SCI_ODD_CFG` — P109,
 //!   P110, P501 and P502 included — to the odd-class constant
-//!   (`cores/arduino/Serial.cpp`). Board wiring (P109/P110 to the level
-//!   translator and ESP32-S3; P501/P502 to the ESP32-S3): ABX00087 block
-//!   diagram, transcribed in Limitations.md. The even-class value is
+//!   (`cores/arduino/Serial.cpp`). Board wiring (P109/P110 through the
+//!   level translator to the ESP32-S3; P501/P502 board-internal to the
+//!   ESP32-S3): ABX00087 block diagram. The even-class value is
 //!   Slice-3 hardware-proven; the odd-class value is proven by Slice 4's
 //!   monitor run.
 //!
@@ -63,7 +63,7 @@
 //! polling `Uart` keeps the shape the course already teaches. The
 //! interrupt-mode driver ([`UartIrq`], feature `uart-irq`) carries the
 //! `embedded-hal-nb` serial, `embedded-io`, and `core::fmt::Write`
-//! impls from Slice 5 on (HalSpec §6).
+//! impls from Slice 5 on.
 
 mod baud_error;
 mod baud_params;

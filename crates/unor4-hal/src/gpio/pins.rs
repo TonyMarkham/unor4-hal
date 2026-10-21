@@ -1,8 +1,8 @@
 //! The Arduino header pins — one map per board, selected by crate feature.
 //!
-//! Correctness chain (HalSpec §5.2, §7.2): both maps derive from the
+//! Correctness chain: both maps derive from the
 //! Arduino core's board tables, transcribed into `pins.csv` (cross-check
-//! data only, HalSpec §1 — nothing copied). The golden test in
+//! data only — nothing copied). The golden test in
 //! `src/tests/pins.rs` proves the compiled map equals that transcription.
 //! The WiFi map is additionally hardware-proven: slice 1 blinks
 //! D13 = P102 on the real board.

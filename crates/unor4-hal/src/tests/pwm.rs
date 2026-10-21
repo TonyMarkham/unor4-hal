@@ -116,13 +116,13 @@ fn given_pclkd_48mhz_when_25mhz_requested_then_divisor_1_with_2_counts() {
     assert_eq!(params.gpr, 1);
 }
 
-/// The golden constructor surface (HalSpec §5.6): every header PWM pin's
+/// The golden constructor surface: every header PWM pin's
 /// (engine, chip pin, output) triple from manual §19 Tables
 /// 19.6/19.7/19.10/19.12, asserted as function-pointer types so a
 /// missing or mistyped constructor fails to compile. Purely type-level —
 /// nothing here touches hardware.
 //
-// Cross-check data: `Research/slice-07-research.md` §3 (the table
+// Cross-check data: manual §19 Tables 19.6/19.7/19.10/19.12 (the table
 // cross-checked entry-for-entry against the Arduino core's `pinmux.inc`).
 #[cfg(feature = "wifi")]
 #[test]

@@ -1,6 +1,6 @@
 //! The blocking CDC-ACM wrapper: `usbd-serial` behind a console API.
 //!
-//! HalSpec §6 gives USB CDC the trait surface the UART module has:
+//! USB CDC carries the trait surface the UART module has:
 //! [`embedded_io::Read`], [`embedded_io::Write`] and [`core::fmt::Write`].
 //! The class logic (line coding, notification endpoint, packet
 //! chunking) is `usbd_serial::SerialPort`'s; this wrapper adds the

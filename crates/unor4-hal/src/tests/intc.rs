@@ -1,5 +1,5 @@
 //! Host tests for the interrupt infrastructure: the IELSR event-table
-//! integrity (HalSpec §7.3) and the dispatch registry's contract. The
+//! integrity and the dispatch registry's contract. The
 //! ICU/NVIC register paths are target code — they are proven by the
 //! slice's hardware run, not here.
 

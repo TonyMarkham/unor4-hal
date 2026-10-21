@@ -185,7 +185,7 @@ fn given_usb_cdc_type_when_traits_are_required_then_all_spec_traits_are_implemen
     // when
     requires_traits::<CdcAcm<'static, MockBus>>();
     // then
-    // Compilation proves HalSpec §6's complete USB CDC trait surface.
+    // Compilation proves the complete USB CDC trait surface.
 }
 
 #[test]

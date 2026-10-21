@@ -4,9 +4,9 @@
 //! switch, drive high for RA4"; ABX00087 datasheet §6.2 — U2/U6 analog
 //! switches route the connector's D+/D− to the RA4M1). The ESP32-S3
 //! bridge loses the connector **the moment this returns**: its COM port
-//! drops, and the SCI9 monitor path with it (probe-proven 2026-10-20,
-//! `Research/slice-09-research.md` §10.4 — the bridge re-enumerates by
-//! itself after explicit release). A double-tap RESET (bootloader hold)
+//! drops, and the SCI9 monitor path with it (probe-proven 2026-10-20:
+//! the bridge re-enumerates by itself after explicit release). A
+//! double-tap RESET (bootloader hold)
 //! also returns the connector to the bridge (observed 2026-10-20); after
 //! a single reset the application decides again.
 //!

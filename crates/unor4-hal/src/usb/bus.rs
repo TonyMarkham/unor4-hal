@@ -2,7 +2,7 @@
 //!
 //! Register facts are manual §27 (R01UH0887EJ0100) unless noted; the
 //! bring-up sequence was hardware-proven by the slice 9 probe
-//! (`Research/slice-09-research.md` §10). Bit constants carry their
+//! (2026-10-20). Bit constants carry their
 //! section numbers. The adapter translates hardware CTSQ/DVSQ and packet
 //! completion flags into usb-device events; usb-device owns request parsing.
 

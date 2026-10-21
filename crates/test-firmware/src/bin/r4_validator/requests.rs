@@ -133,7 +133,7 @@ pub(crate) fn s4_token(clock: &mut Clock, monitor: &mut Uart<ra4m1::SCI9>) -> Bo
 }
 
 /// Slice 5 through the traits: echoes `wanted` bytes using only
-/// `embedded_io::{Read, Write}` on `&UartIrq` (HalSpec §6). `read` blocks
+/// `embedded_io::{Read, Write}` on `&UartIrq`. `read` blocks
 /// until at least one byte is in the RX ring (the 0.7 contract), so the R3
 /// must send all `wanted` bytes. TX is released after every flushed chunk:
 /// while `read` waits, the PC can still reach the R3 and its `!`/`@`.

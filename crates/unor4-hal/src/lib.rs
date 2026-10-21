@@ -1,7 +1,8 @@
 //! `unor4-hal` — independent HAL for the Arduino UNO R4 (Renesas RA4M1).
 //!
-//! Hardware facts in this crate trace to the Renesas RA4M1 hardware manual.
-//! Scope and requirements: HalSpec.md.
+//! Hardware facts in this crate trace to the Renesas RA4M1 hardware
+//! manual; each module's docs state its facts, their manual sections,
+//! and what the module deliberately leaves out.
 //!
 //! # Board selection
 //!
@@ -9,7 +10,7 @@
 //! this project's board) or `minima`. Compiling with both, or with
 //! neither, is a compile error: a board is a physical fact. Every pin's
 //! documentation shows the mapping for *both* boards, so the docs never
-//! lie about the board you are not building (HalSpec §5.2).
+//! lie about the board you are not building.
 
 // `not(test)`: unit tests run on the host, where the test harness needs
 // std; the firmware itself does not.
@@ -17,7 +18,7 @@
 #![deny(missing_docs)]
 #![allow(clippy::module_inception)]
 
-// HalSpec §3: the two pin maps are mutually exclusive. "Both at once"
+// The two pin maps are mutually exclusive. "Both at once"
 // is always a mistake — there is no board with both mappings.
 #[cfg(all(feature = "minima", feature = "wifi"))]
 compile_error!("`minima` and `wifi` are mutually exclusive — a board is a physical fact, pick one");

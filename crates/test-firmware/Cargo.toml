@@ -2,10 +2,12 @@
 name              = "test-firmware"
 version           = { workspace = true }
 edition           = { workspace = true }
+license           = { workspace = true }
+publish           = false
 autobins          = false
 
 [features]
-# Forward the library's board map (HalSpec §3): the lib's default
+# Forward the library's board map: the lib's default
 # features stay off here so exactly one map lands in each image.
 #   wifi image:   cargo build --release --features usb,uart-irq
 #   minima image: cargo build --release --no-default-features --features minima,usb,uart-irq

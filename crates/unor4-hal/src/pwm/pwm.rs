@@ -16,8 +16,7 @@ use ra4m1::gpt320::{
 /// `PSEL` for the GTIOC pin-function group — every header PWM pin muxes
 /// to its `GTIOCnA/nB` output at `PSEL[4:0] = 00011b` (manual §19 "I/O
 /// Ports": PORT1 Tables 19.6/19.7, PORT3 Table 19.10, PORT4 Table
-/// 19.12; cross-checked against the Arduino core's `pinmux.inc`, see
-/// `Research/slice-07-research.md`).
+/// 19.12; cross-checked against the Arduino core's `pinmux.inc`).
 const PSEL_GPT: u8 = 0b00011;
 
 /// One claimed GPT channel driving one PWM output.
@@ -41,8 +40,8 @@ pub struct Pwm<S, const PORT: char, const PIN: u8, const IOCB: bool> {
 
 // Per-map constructors. The two boards wire their header PWM pins to
 // different chip pins/engines (manual §19 Tables 19.6/19.7/19.10/19.12,
-// cross-checked against the Arduino core's `pinmux.inc` — the full map
-// is `Research/slice-07-research.md` §3), so the constructors are
+// cross-checked against the Arduino core's `pinmux.inc`), so the
+// constructors are
 // feature-gated like the pin tables: exactly one board per build.
 // `d9` is the exception — P303 is D9 on both maps, so its constructor
 // is ungated.

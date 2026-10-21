@@ -17,17 +17,13 @@ Throughout AGENTS.md and the project docs:
 
 ## Project goal
 
-Implement [HalSpec.md](HalSpec.md) milestone by milestone: an independent
-(**no fork, no copied code**) HAL crate, `unor4-hal`, for the Arduino UNO R4
-(Renesas RA4M1) — closing the gaps of the board's existing community
-support: SCI1, SCI9, USB CDC, interrupt infrastructure, data flash.
-Rationale and background: [Limitations.md](Limitations.md). Build order and
-per-slice hardware verification: [Plan.md](Plan.md) — a slice is done when
-the board shows it, not when it compiles.
+Implement an independent (**no fork, no copied code**) HAL crate,
+`unor4-hal`, for the Arduino UNO R4 (Renesas RA4M1) — closing the gaps of
+the board's existing community support: SCI1, SCI9, USB CDC, interrupt
+infrastructure, data flash. A slice is done when the board shows it, not
+when it compiles; the README's slice and validation records are the
+witness log.
 
-- **Source of truth for requirements is HalSpec.md.** If implementation and
-  spec disagree, the spec wins — and gets fixed immediately if the spec is
-  the wrong one.
 - **Source of truth for hardware facts is the Renesas RA4M1 hardware manual**
   (and the RA4M1 SVD). Register addresses, pin tables, the SCI baud formula,
   the IELSR event map: cite the manual section in a comment or doc when it
@@ -49,8 +45,7 @@ the board shows it, not when it compiles.
    workflows *as files*. Code inside documentation or chat is fine and
    expected — it may contain complete file contents; the owner applies
    them. The only files an agent may create/edit directly are
-   documentation: AGENTS.md, HalSpec.md, Limitations.md, Plan.md, README.md,
-   and CHANGELOG.md entries.
+   documentation: AGENTS.md, README.md, and CHANGELOG.md entries.
    - **Override by explicit owner grant.** The owner may grant the agent
      permission to write specific project code or config. A grant is valid
      only if explicit and affirmative — never inferred from silence, a
@@ -143,6 +138,16 @@ the board shows it, not when it compiles.
     plain text and the session ends its turn there; the owner answers in
     their own words on their own time.
 
+## Current grants
+
+- **2026-10-21 — comment-only reference cleanup (expired on completion).**
+  Owner grant, given in chat: "fix all docs and code comments" after the
+  spec/research docs (`HalSpec.md`, `Limitations.md`, `Plan.md`,
+  `Research/slice-06…10-research.md`) were removed. Scope: comment-only
+  edits across all crates' `src/**` files, `pins.csv`, and manifest
+  comments — no logic, signature, or behavior changes. The pass was
+  completed the same day; no grant is in force now.
+
 ## Board-safety constraints (the test board is the same UNO R4 WiFi)
 
 - The Arduino bootloader occupies flash `0x00000000–0x00003FFF`. Any
@@ -153,7 +158,7 @@ the board shows it, not when it compiles.
   with `arduino-cli upload`.
 - The USB port is shared with the ESP32-S3 bridge (uploads, monitor). Any
   API that flips the USB mux to the RA4M1 must be explicit and documented as
-  disconnecting the bridge (HalSpec §5.5).
+  disconnecting the bridge.
 
 ## Test bench (hardware available to agents)
 
@@ -223,8 +228,7 @@ bootloader first.
 - **The bench is planned through Slice 10.** When proposing wiring
   additions, the agent checks them against the pins every remaining slice
   needs, so that the bench as wired for Slice 10 remains compatible with
-  every earlier slice's wiring (Plan.md lists the slices; HalSpec lists
-  the peripherals).
+  every earlier slice's wiring.
 - **The proof pattern is a two-board pair.** The pair is:
   - R3 controller: `arduino/validation/r3-validator/r3-validator.ino`.
   - R4 responder: `crates/test-firmware/src/bin/r4_validator/main.rs`, the
@@ -278,7 +282,7 @@ bootloader first.
   independently; don't recreate the problem. All dependencies are
   MIT/Apache-2.0 (license-audited 2026-10-18), so a single MIT file covers
   the crate.
-- Feature gates follow HalSpec §3: `minima`/`wifi` mutually exclusive via
+- Feature gates: `minima`/`wifi` mutually exclusive via
   `compile_error!`, `wifi` the default, `usb` opt-in.
 - The README's quick example is `cargo check`-verified by the owner before
   every release.
@@ -291,8 +295,9 @@ bootloader first.
 - Unit tests follow given-when-then: name tests
   `given_<setup>_when_<action>_then_<expectation>` and comment the body
   with `// given` / `// when` / `// then` phases.
-- No unlicensed or unaudited dependencies; HalSpec §1's audit rule applies
-  to every new dependency.
+- No unlicensed or unaudited dependencies; every new dependency gets a
+  license audit (MIT/Apache-2.0, or an owner-approved exception recorded
+  where the dependency is declared).
 
 ## justfiles (developer workflow)
 

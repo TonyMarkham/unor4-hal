@@ -25,7 +25,7 @@ panic-halt         = { version = "1.0.0" }
 ra4m1              = { version = "0.2.0" }
 
 # `usb` feature only: usb-device 0.3 bus-hal + the CDC-ACM class crate.
-# Both MIT (license audit 2026-10-20, Research/slice-09-research.md §7).
+# Both MIT (license audit 2026-10-20).
 usb-device         = { version = "0.3.2" }
 usbd-serial        = { version = "0.2.2" }
 

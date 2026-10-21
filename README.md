@@ -20,9 +20,6 @@ An independent hardware abstraction layer (HAL) for the Arduino UNO R4
   is unreachable through the API. The mode-switch helpers run from SRAM
   via cortex-m-rt's `.data` copy; no `memory.x` change is needed
 
-Design, requirements, and build order live in the repo's spec docs:
-[HalSpec.md](HalSpec.md), [Plan.md](Plan.md), [Limitations.md](Limitations.md).
-
 ## Status
 
 Early development — the API is unstable and the crate is not yet published
@@ -750,7 +747,7 @@ Two rules for every upload, from the course's verified procedure:
 > 5 seconds for 30 seconds per run and relays every received byte to
 > the SCI9 monitor path, with non-printables shown as `\xHH`.
 >
-> **Hardware facts** (full chain in `Research/slice-06-research.md`):
+> **Hardware facts**:
 > P501/P502 mux to TXD1/RXD1 at `PSEL[4:0] = 00101b` (manual
 > R01UH0887EJ0100 §19, Table 19.13); `MSTPCRB.MSTPB30` releases SCI1
 > (manual §10.2.3); the stock bridge firmware implements its AT server
@@ -832,7 +829,7 @@ Two rules for every upload, from the course's verified procedure:
 > never-matching-compare mechanisms), then sine breathing (2.048 s
 > cycle) until the next gate edge.
 >
-> **Hardware facts** (full chain in `Research/slice-07-research.md`):
+> **Hardware facts**:
 > WiFi D6 = P111 → `GTIOC3A` on GPT163 at `PSEL[4:0] = 00011b` (manual
 > §19 Tables 19.6/19.7/19.10/19.12, cross-checked entry-for-entry
 > against the Arduino core's `pinmux.inc`); `MSTPCRD.MSTPD6` releases
@@ -841,10 +838,10 @@ Two rules for every upload, from the course's verified procedure:
 > 0%/100% via `GTUDDTYC.OADTY` / never-matching compare, because a
 > compare match at the cycle end loses to the cycle-end setting in
 > saw-wave mode (Table 22.5 Note 2, §22.3.6). The public trait is
-> `embedded-hal` 1.0 `SetDutyCycle` (HalSpec §6 amended — the 0.2
+> `embedded-hal` 1.0 `SetDutyCycle` (the 0.2
 > multi-channel `Pwm` trait does not exist in 1.0).
 >
-> **The full PWM surface (HalSpec §5.6):** all six header PWM pins are
+> **The full PWM surface:** all six header PWM pins are
 > addressable, named by header pin with the engine/pin/output fixed at
 > compile time — `Pwm::d3`, `d5`, `d6`, `d9`, `d10`, `d11` (D9 shares
 > one constructor across both maps; the rest are per-map, like the pin
@@ -923,7 +920,7 @@ Two rules for every upload, from the course's verified procedure:
 > mean of a PWM wave over whole periods is duty × VREF, so the window
 > means trace the staircase with no RC filter.
 >
-> **Hardware facts** (full chain in `Research/slice-08-research.md`):
+> **Hardware facts**:
 > A0–A5 are the same chip pins on both boards — A0 = P014 → **AN009**
 > (also DA0), A1 = P000 → AN000, A2 = P001 → AN001, A3 = P002 → AN002,
 > A4 = P101 → AN021, A5 = P100 → AN022 (manual §19 Tables 19.5/19.6
@@ -939,11 +936,11 @@ Two rules for every upload, from the course's verified procedure:
 > valid at this crate's 1:2 PCLKB:PCLKC ratio (≥ 6 states, §35.2.14).
 > Conversion ≈ 1206 ns (12-bit high-speed, `calc_scan_time`, host
 > tested). **There is no ADC trait in `embedded-hal` 1.0** — the
-> driver exposes its own `read()` API (HalSpec §5.7/§6 amended
+> driver exposes its own `read()` API (amended
 > 2026-10-19), the same stance the UART module takes outside
 > `embedded-io`.
 >
-> **The full analog surface (HalSpec §5.7):** all six header pins are
+> **The full analog surface:** all six header pins are
 > addressable through the sealed `Channel` trait (one `const AN` per
 > pin type; only analog-state pins type-check). Hardware proof: A0
 > end-to-end (accuracy instrumented), and A1–A5 converted through the
@@ -1209,8 +1206,6 @@ fixed:
 - `cargo doc` with `-D warnings` still fails on two pre-existing links
   outside USB (`adc/adc.rs` `ADST_POLL_LIMIT`, `pwm/mod.rs`
   `Pwm::set_duty_cycle`).
-- `Research/slice-09-research.md` keeps its original §10.1, §10.6 and §10.7
-  statements, each followed by a dated correction.
 
 ### All-in-one validation — Slices 1–10 (`arduino/validation/`)
 
@@ -1284,7 +1279,7 @@ R4 D2 is free/open: the push button is no longer part of the bench
 CLI, open the R3 at 9600 and send `a` for S1–S8 and S10's self-test, or
 one letter per check (`?` lists them). Results go to `target/validation/`.
 
-Slice 10's power cycles (the done-when's ~20, Plan.md) need hands. The
+Slice 10's power cycles (the done-when's ~20) need hands. The
 R4 runs from its barrel jack with **USB unplugged**; the R3 stays on USB
 (it must stay powered while D4 is wired to the R4's RESET, AGENTS.md).
 Then, from the repo root:

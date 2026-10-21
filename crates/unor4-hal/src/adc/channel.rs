@@ -20,8 +20,7 @@ mod private {
 /// P100 = AN022/CMPIN0, P101 = AN021/CMPREF0); datasheet
 /// (R01DS0355EJ0110) pin-function tables, same rows. Cross-checked
 /// entry-for-entry against the Arduino core's
-/// `variants/UNOWIFIR4/pinmux.inc` (`CHANNEL_0/1/2/9/21/22`) — see
-/// `Research/slice-08-research.md` §3.
+/// `variants/UNOWIFIR4/pinmux.inc` (`CHANNEL_0/1/2/9/21/22`).
 pub trait Channel: private::Sealed {
     /// The AN channel number this pin converts (0–25, no 15 — §35.1
     /// Table 35.1). It indexes `ADANSA0` (channels ≤ 14) or `ADANSA1`

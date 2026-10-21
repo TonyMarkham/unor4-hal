@@ -2,9 +2,9 @@
 //! a [`usb_device::bus::UsbBus`] adapter, plus a blocking CDC-ACM wrapper.
 //!
 //! Hardware facts: manual §27 (R01UH0887EJ0100); bring-up sequence
-//! hardware-proven by the slice 9 probe (`Research/slice-09-research.md`
-//! §10 — including the two traps: `MSTPCRB` is PRC1-protected AND needs
-//! 32-bit bus access). Cross-check data only: the Arduino core's TinyUSB
+//! hardware-proven by the slice 9 probe (2026-10-20) — including the
+//! two traps: `MSTPCRB` is PRC1-protected AND needs
+//! 32-bit bus access. Cross-check data only: the Arduino core's TinyUSB
 //! `rusb2` port and the `ra-hal` embassy port (neither transcribed).
 //!
 //! # The mux — read before using on a WiFi board
@@ -19,7 +19,7 @@
 //! The Minima has no mux — the connector
 //! is wired to the RA4M1 — so there [`UsbPort::take`] is a no-op.
 //!
-//! Per HalSpec §5.5 this is never implicit: taking [`UsbPort`] is the
+//! This is never implicit: taking [`UsbPort`] is the
 //! application's own decision, separate from [`Usbfs::new`] (a post-reset window, a button press —
 //! owner decision 2026-10-20: the HAL ships mechanisms, never policies).
 //!

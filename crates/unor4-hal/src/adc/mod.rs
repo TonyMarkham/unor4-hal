@@ -1,13 +1,12 @@
 //! ADC140 driver (Slice 8) — single-shot blocking reads on A0–A5.
 //!
 //! Hardware facts, Renesas RA4M1 hardware manual (R01UH0887EJ0100)
-//! unless the source is named otherwise; the full verification chain is
-//! `Research/slice-08-research.md`:
+//! unless the source is named otherwise:
 //! - One unit, 25 analog channels AN000–AN014 + AN016–AN025 (§35.1
 //!   Table 35.1), successive approximation, register base
 //!   `0x4005_C000` (§41.1; the PAC's `ADC140::PTR` agrees).
 //! - Resolution is per-unit, `ADCER.ADPRC[1:0]`: `00b` = 12-bit (the
-//!   reset value and HalSpec §5.7's default), `11b` = 14-bit (§35.2.11);
+//!   reset value and the driver's default), `11b` = 14-bit (§35.2.11);
 //!   writable only while stopped. Data is right-justified by reset
 //!   (`ADRFMT = 0`); `ADDRy` is a 16-bit read-only register (§35.2.1).
 //! - Clocks: PCLKB (module) and PCLKC/ADCLK (conversion), ratio
@@ -53,7 +52,7 @@
 //!   5 V analog rail) — the slice 8 hardware run measured the actual
 //!   rails/staircase error and recorded it in the README.
 //!
-//! **Trait note (HalSpec §6, amended 2026-10-19):** `embedded-hal` 1.0
+//! **Trait note:** `embedded-hal` 1.0
 //! has no `adc` module (only `delay`, `digital`, `i2c`, `pwm`, `spi`;
 //! `embedded-hal-nb` 1.0 only `serial`, `spi`), so there is no
 //! ecosystem ADC trait to implement — [`Adc::read`] is this crate's own

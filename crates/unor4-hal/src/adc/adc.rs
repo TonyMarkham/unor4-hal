@@ -41,8 +41,7 @@ impl Adc {
     ///
     /// Consumes the PAC's `ADC140` (exactly-once claim, like everything
     /// `Peripherals::take` hands out). `resolution` selects the result
-    /// width (12-bit is HalSpec §5.7's default; the reset value is also
-    /// 12-bit).
+    /// width (12-bit is the default; the reset value is also 12-bit).
     ///
     /// Bring-up (manual §35.8.5 + §35.2.3/§35.2.11, with every register
     /// the driver relies on rewritten rather than trusted from a
