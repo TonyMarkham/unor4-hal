@@ -12,7 +12,8 @@ unor4-hal/
 ├── Cargo.toml              # workspace root: members, profiles, workspace deps
 ├── crates/
 │   ├── unor4-hal/          # the library (this repo's product)
-│   └── test-firmware/      # per-slice source programs — built and flashed locally, never stored
+│   └── test-firmware/      # r4_validator, the R4 side of the validation pair — built and flashed locally
+├── validation/             # r3-validator sketch + validate.ps1 host script
 └── AGENTS.md, HalSpec.md, Limitations.md, Plan.md
 ```
 
@@ -20,10 +21,15 @@ unor4-hal/
   `0x00004000` — bootloader safety, see AGENTS.md), `.cargo/config.toml`
   (target pin), `build.rs`. The library crate stays target-agnostic and
   board-agnostic except for the pin tables.
-- Every slice adds a **new binary** in `test-firmware/src/bin/`
-  (`slice03_sci2.rs`, …). Earlier binaries keep compiling forever — they are
-  the regression suite, and the hardware evidence accumulates instead of
-  being deleted.
+- Every slice adds its checks to the **validation pair**:
+  - `test-firmware/src/bin/r4_validator.rs`;
+  - `validation/r3-validator`;
+  - `validation/validate.ps1`.
+
+  The pair is the regression suite (rules 2–3 below). Until 2026-10-20
+  each slice added its own binary. The "Binary:" lines in the slice
+  entries below name those retired programs: Slices 1–8 restore from git
+  `6649d4c`, while the Slice 9 programs were never committed.
 - The library never flashes; only `test-firmware` produces images. Upload
   procedure: course repo, BlinkEmbedded Step 5 (never upload cold).
 
@@ -79,7 +85,8 @@ core tables, and the binary works with both feature builds.
 1 Hz on D0/D1.
 
 **Observable:** `tick N` lines stream in the bridge monitor — an R3
-running the relay sketch `arduino/sketches/slice03-adapter`, wired
+running the relay sketch `slice03-adapter` (removed 2026-10-20;
+restorable from git `6649d4c`), wired
 D0<->D1 crossed to the R4 (README slice 3).
 **Done when:** baud unit tests pass on the host and the board prints for
 10 minutes without garbage or a hang.
@@ -127,8 +134,9 @@ item — the mission's hard dependency.
 exactly `OK\x0d\x0a` (one complete 6-round run, one partial 3-round
 capture; the partial run's own `total=24` report covers its unwitnessed
 rounds), `ov=0 er=0`; the run is re-triggerable via
-the bench gate line (`arduino/sketches/slice06-gate` cycles R3 D3 → R4
-D3, the firmware re-arms on the rising edge). Reproduction commands,
+the bench gate line (the R3 sketch `slice06-gate` cycles R3 D3 → R4
+D3, the firmware re-arms on the rising edge; sketch removed 2026-10-20,
+restorable from git `6649d4c`). Reproduction commands,
 transcript, and failure triage: README slice 6. Verification chain:
 `Research/slice-06-research.md`. Recorded as HalSpec OQ-7.
 
@@ -139,8 +147,9 @@ transcript, and failure triage: README slice 6. Verification chain:
 PWM pins (D3, D5, D6, D9, D10, D11 — surface-locked by the golden
 constructor test), D6 hardware-proven first. Binary:
 `slice07_breathe.rs` — sine-table breathing on D6. Measured, not
-eyeballed: D6 → R3 D2 (INT0), `arduino/sketches/slice07-measure` measures
-duty/period edge-by-edge (owner decision 2026-10-19: no LED).
+eyeballed: D6 → R3 D2 (INT0), the R3 sketch `slice07-measure` (removed
+2026-10-20; restorable from git `6649d4c`) measures duty/period
+edge-by-edge (owner decision 2026-10-19: no LED).
 
 **Observable:** the R3 reports the duty staircase (0/25/50/75/100%,
 period exactly 1000 µs) and the sine breathing profile from the wire.
@@ -165,7 +174,8 @@ live as a pot turns (if available).
 **Done when:** readings within datasheet tolerance at both rails, printed
 through the slice 4 monitor path.
 — Done: verified on WiFi 2026-10-20, measured by the R3 rig
-(`arduino/sketches/slice08-source`, R3 D5 → R4 A0, one additive bench
+(R3 sketch `slice08-source`, removed 2026-10-20 and restorable from git
+`6649d4c`; R3 D5 → R4 A0, one additive bench
 wire): five 1.5 s averaged windows (631 650 samples each) over the R3's
 PWM duty staircase read 7/1045/2051/3072/4095 against expected
 0/1028/2040/3068/4095 — worst error +17 LSB ≈ 21 mV, inside the
@@ -190,9 +200,22 @@ Binary: `slice09_cdc.rs` — enumerates as a CDC device, echoes, prints ticks.
 
 **Observable:** a **new** COM port appears without any adapter; opening it
 shows ticks; the bridge's port is gone while held (documented behavior).
-**Done when:** `lsusb`-equivalent (Device Manager) shows the descriptor, an
-hour-long tick run shows no port drop, and *upload still works* after
-replugging (bridge recovery). Largest slice — HalSpec's OQ-3 gates starting it.
+**Done when:** `lsusb`-equivalent (Device Manager) shows the descriptor,
+native CDC echo and ticks work, and *upload still works* after replugging
+(bridge recovery). **Owner amendment, 2026-10-20:** the hour-long soak is
+cancelled; no replacement soak duration is required. Largest slice —
+HalSpec's OQ-3 gates starting it.
+
+**Status 2026-10-20 (WiFi):** the following were witnessed:
+
+- the descriptor and native COM port appearing;
+- echo and ticks working with the bridge port gone;
+- recovery without hands: the opt-in 1200-baud knock (bootloader holds),
+  followed by a standard upload on the bridge port.
+
+An upload after a **physical replug** was also witnessed (21:19). Every
+done-when item is therefore met on WiFi. Minima remains
+hardware-unverified. Details and commands: README, Slice 9.
 
 ### Slice 10 — Data flash → the board remembers
 
@@ -208,13 +231,24 @@ cycle verified byte-exact.
 
 1. **One observable per slice.** If a slice needs two to be convincing, it's
    two slices.
-2. **Nothing ships from the library without its binary proving it.**
-   `unor4-hal` modules land in the same commit as the `test-firmware`
-   binary that demonstrates them.
-3. **Slice source programs are forever.** Never delete a slice's
-   `src/bin/*.rs` — every earlier firmware keeps compiling forever and is
-   the regression suite. The built `.bin` image is a local build artifact
-   (`*.bin` is gitignored) — regenerate it from source any time.
+2. **Nothing ships from the library without the validation pair proving
+   it.** A `unor4-hal` module lands in the same commit as the matching
+   checks in the validation pair:
+   - a request in `crates/test-firmware/src/bin/r4_validator.rs`;
+   - a check in `validation/r3-validator/r3-validator.ino`;
+   - a row in `validation/validate.ps1` when only a PC can observe it.
+3. **The validation pair is the regression suite.** It keeps every
+   finished slice's check, so one run of `validate.ps1` re-proves all of
+   them. A check is removed only together with the feature it proves.
+   The built `.bin` image is a local build artifact (`*.bin` is
+   gitignored); regenerate it from source any time.
+
+   *Amended 2026-10-20 (owner):* the per-slice programs were retired in
+   favour of the pair. The Slice 1–8 programs restore with
+   `git restore --source 6649d4c -- crates/test-firmware/src/bin/<name>.rs`
+   (plus `src/heartbeat.rs` for the four that use it). The Slice 9
+   programs, `noop` and `slice08_req_res_reset` were never committed and no
+   longer exist.
 4. **Hardware facts get cited** (manual section) or **get marked unverified
    until a slice proves them** (OQ-1…OQ-6 all close this way).
 5. **The course repo stays the consumer.** At slice 3 the course's Serial.md

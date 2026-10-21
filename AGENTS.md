@@ -136,10 +136,20 @@ the board shows it, not when it compiles.
    - **A documented decisive step is executed first.** If a handoff or
      prior session names the observation that would settle the matter,
      that observation runs before any other experiment.
+10. **Never use the interactive question/prompt tool.** Agents must never
+    invoke OpenCode's question feature (or any interactive prompt that
+    blocks on the user) — not for clarifications, not for menus of
+    options, not for permission requests. Questions go into the reply as
+    plain text and the session ends its turn there; the owner answers in
+    their own words on their own time.
 
 ### Current grants (owner-granted exceptions to rules 1–2)
 
-- None. Rules 1 and 2 apply as written.
+- 2026-10-20: Owner explicitly authorized rewriting
+  `arduino/sketches/slice09-relay/slice09-relay.ino` to perform only
+  single/double D4 pulses via serial commands, and subsequently authorized
+  adding USB-trigger usage comments. Scope is this rewrite and its comments only;
+  no build, test, flash, or install permission granted.
 
 ## Board-safety constraints (the test board is the same UNO R4 WiFi)
 
@@ -168,14 +178,43 @@ UNO R3 (stimulus/controller), wired together as follows.
 - R3 D2 (INT0) <--> R4 D6 (GPT PWM out, slice 7 measurement rig)
 - R3 D5 (PWM out) <--> R4 A0 (ADC in, slice 8 measurement rig)
 - R3 GND     <--> R4 GND
-- Push Button 0 <--> R4 D2
-- Push Button 1 <--> R4 GND
+- R3 D4      <--> R4 RESET (remote-reset wire: the R3 pulses it LOW and
+  releases to input — open-drain discipline only, never driven HIGH —
+  so the agent can reset the R4, and double-pulse it into bootloader
+  mode, without the owner's hands. Commands `!` = single reset, `@` =
+  double reset, sent to the R3's `validation/r3-validator` sketch over its
+  serial port. They reach the R3 only while the R4 is not driving SCI2 TX
+  (README, Slice 9).)
+  - **This wire only works while the R3 is powered on. If the R3 is
+    powered off, its D4 clamps the R4's RESET line — the RESET pin
+    connection MUST be removed whenever the R3 is unpowered.**
+- **The R4 can be forced into bootloader mode over USB.** Briefly
+  opening the R4's serial port at 1200 baud (8N1, no data — the baud
+  rate itself is the signal) makes the ESP32-S3 bridge double-pulse the
+  RA4M1's RESET into bootloader hold. `arduino-cli upload` performs
+  this touch automatically before flashing, so the flash path does not
+  depend on the D4 wire for bootloader entry — the wire's role is to
+  recover the bridge when a crashed/hung R4 firmware holds the USB mux
+  (proven: touch → SAM-BA handshake → flash on bridge firmware 0.6.0).
+- R4 D2 — free/open (owner, 2026-10-20). The push button that was on
+  R4 D2 / R4 GND is no longer part of the bench; the R3 is the button
+  (see D3 below).
 
-D0/D1 crossed form the SCI2 UART channel between the boards; D3 straight
-through is the test-gate line (the controller drives it low to mark a test
-round — see `slice05_rig.rs`). While the R4's TX driver is active it can
-corrupt the R3's bootloader sync; uploads that touch both boards stage the
-R4's pins as inputs first (`test-slice05.ps1` shows the working order).
+D0/D1 crossed form the SCI2 UART channel between the boards. D3 straight
+through is shared by the validation pair, and is input with pull-up on
+both boards except while one side drives it for a test it asked for:
+- **Slice 2 input:** the R3 drives it low, then high.
+- **Slice 2 button:** the R3 "presses" it the way a switch to GND would:
+  driven LOW, then released to input, never driven HIGH.
+- **Slice 1 timing:** the R4 drives a square wave.
+
+The retired per-slice programs used D3 as a test-gate line.
+
+While the R4's SCI2 TX driver is active it can corrupt the R3's
+bootloader sync, and it blocks PC commands to the R3. `r4_validator`
+releases TX whenever it is idle, so the R3 can be uploaded while it runs
+(done repeatedly 2026-10-20). With any other R4 image, put the R4 in
+bootloader first.
 
 - **The bench is extensible — and the agent proposes extensions.** When a
   future slice would benefit from wiring the bench does not have (an extra
@@ -194,16 +233,26 @@ R4's pins as inputs first (`test-slice05.ps1` shows the working order).
   needs, so that the bench as wired for Slice 10 remains compatible with
   every earlier slice's wiring (Plan.md lists the slices; HalSpec lists
   the peripherals).
-- **The proof pattern is a two-board pair.** Each slice is validated by a
-  coordinated pair: an R3 `.ino` sketch (stimulus/controller) and the
-  slice's R4 Rust binary in `test-firmware/src/bin/`, working together to
-  prove the slice's feature on the bench (`slice05-controller` +
-  `slice05_rig` is the model).
-- **R3-side code is Arduino sketches, and stays in the repo.** All R3
-  code is a typical Arduino `.ino` sketch (compiled with `arduino-cli`,
-  never Rust). The sketch used to validate a slice is durably copied into
-  `arduino/sketches/` in this repo as part of that slice, so the hardware
-  evidence stays reproducible from the repo alone.
+- **The proof pattern is a two-board pair.** The pair is:
+  - R3 controller: `validation/r3-validator/r3-validator.ino`.
+  - R4 responder: `crates/test-firmware/src/bin/r4_validator.rs`, the
+    `r4_validator` binary.
+  - Host script: `validation/validate.ps1`.
+
+  Together they re-prove every slice on the bench. A new slice extends
+  this pair:
+  - a request in the R4 responder;
+  - a check in the R3 controller;
+  - a row in the host script, if only a PC can observe it.
+- **R3-side code is Arduino sketches, and stays in the repo.** All R3 code
+  is a typical Arduino `.ino` sketch (compiled with `arduino-cli`, never
+  Rust). It lives in `validation/` so the hardware evidence stays
+  reproducible from the repo alone. The per-slice sketches that used to be
+  in `arduino/sketches/` were removed on 2026-10-20:
+  - Slices 3, 5, 6, 7 and 8: restore with
+    `git restore --source 6649d4c -- arduino/sketches/<name>`.
+  - The Slice 9 sketches and the reset/request-response utilities were
+    never committed and no longer exist.
 
 ## Library conventions (this repo's equivalent of the course's doc rules)
 
@@ -239,9 +288,12 @@ R4's pins as inputs first (`test-slice05.ps1` shows the working order).
   `compile_error!`, `wifi` the default, `usb` opt-in.
 - The README's quick example is `cargo check`-verified by the owner before
   every release.
-- Each slice's binary lands with its *Testing on hardware* README
-  subsection in the same commit — build command, wiring, observable,
-  verified status. The board proves the slice; the README records it.
+- Each slice's checks land in the validation pair, in the same commit as
+  the README record: an R4 request in `r4_validator.rs`, an R3 check, and
+  a host-script row if only a PC can see it. The README's All-in-one
+  validation subsection is updated in that commit: check table, build and
+  run commands, wiring, witnessed run. The board proves the slice; the
+  README records it.
 - Unit tests follow given-when-then: name tests
   `given_<setup>_when_<action>_then_<expectation>` and comment the body
   with `// given` / `// when` / `// then` phases.

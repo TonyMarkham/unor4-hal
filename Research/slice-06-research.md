@@ -1,5 +1,7 @@
 # Slice 6 research — UART SCI1 (the WiFi AT channel)
 
+> **2026-10-20:** the per-slice binary named here (`slice06_at.rs`) and its R3 sketch were retired in favour of the validation pair (README, All-in-one validation; S6). Both restore from git `6649d4c`.
+
 > Planning notes assembled 2026-10-19, before any Slice 6 code. Verified
 > facts are distinguished from open lookups; every open item names where
 > the answer comes from. No code has been written.
@@ -201,7 +203,8 @@ R3 `COM4`):
      asserts DTR and is unaffected.
   2. A one-shot gate lost a run to an unattached reader. The binary now
      **re-arms** (runs on every falling edge of the bench D3 line, waits
-     for it to rise between runs) and `arduino/sketches/slice06-gate`
+     for it to rise between runs) and the R3 sketch `slice06-gate`
+     (removed from the tree 2026-10-20; restorable from git `6649d4c`)
      cycles the line (30 s high / 50 s low), so one flash serves many
      unattended runs. The firmware prints its banner and liveness dots
      *before* the gate, so a silent boot is distinguishable from a

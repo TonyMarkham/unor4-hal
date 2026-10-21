@@ -1,5 +1,7 @@
 # Slice 7 research — PWM (GPT)
 
+> **2026-10-20:** the per-slice binary named here (`slice07_breathe.rs`) and its R3 sketch were retired in favour of the validation pair (README, All-in-one validation; S7). Both restore from git `6649d4c`.
+
 > Planning notes assembled 2026-10-19, before any Slice 7 code. Verified
 > facts are cited to the hardware manual or the PAC; cross-check data
 > (Arduino core, FSP docs) is labeled as such. Open items are named

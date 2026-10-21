@@ -141,7 +141,8 @@ The hardware-proven version of the example above lives at
 
 ## Building firmware
 
-> Build every slice binary:
+> Build the firmware: `test-firmware` has one binary, `r4_validator`, the
+> R4 side of the validation pair (see All-in-one validation below).
 >
 > > [!IMPORTANT]
 > >
@@ -151,13 +152,13 @@ The hardware-proven version of the example above lives at
 > > binary that cannot run on the board.
 >
 > ```powershell
-> cargo build --release
+> cargo build --release --features usb,uart-irq
 > ```
 >
 > The WiFi pin map is the default; build the Minima map with:
 >
 > ```powershell
-> cargo build --release --no-default-features --features minima
+> cargo build --release --no-default-features --features minima,usb,uart-irq
 > ```
 
 Flash safety: the Arduino bootloader occupies the first 16 KiB of flash.
@@ -171,6 +172,22 @@ durable record of "the board shows it". Each subsection is complete:
 build, convert, flash, evaluate. The COM port is discovered once in the
 preamble below and set as `$PORT` — nothing in the
 per-slice commands is machine-specific.
+
+> [!NOTE]
+> **2026-10-20:** the per-slice programs and R3 sketches were retired in
+> favour of the validation pair (All-in-one validation, at the end of this
+> section). One `validate.ps1` run re-proves Slices 1–9.
+>
+> The Slice 1–8 subsections below are the historical record. To repeat
+> one exactly as written, run its commands in a worktree of commit
+> `6649d4c`, where every program, script and sketch it names still exists:
+>
+> ```powershell
+> git worktree add ..\unor4-hal-6649d4c 6649d4c
+> ```
+>
+> The Slice 9 per-slice programs were never committed, so they cannot be
+> recovered.
 
 Two rules for every upload, from the course's verified procedure:
 
@@ -244,6 +261,8 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 1 — blink (`slice01_blink`)
 >
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S1.
+>
 > **Build and convert** (from `crates/test-firmware/`):
 >
 > > [!IMPORTANT]
@@ -286,6 +305,8 @@ Two rules for every upload, from the course's verified procedure:
 > size (1,584 bytes at slice 1).
 
 > ### Slice 2 — button (`slice02_button`)
+>
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S2.
 >
 > > [!IMPORTANT]
 > > **Wiring:** a pushbutton between **D2 and GND** — nothing else. The
@@ -375,6 +396,8 @@ Two rules for every upload, from the course's verified procedure:
 > **Verified:** pending hardware run.
 
 > ### Slice 3 - UART SCI2 (`slice03_sci2`)
+>
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S3.
 >
 > > [!IMPORTANT]
 > > **Test setup** (no USB-UART adapter needed): an R3
@@ -470,6 +493,8 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 4 — UART SCI9, the monitor path (`slice04_sci9`)
 >
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S4.
+>
 > > [!IMPORTANT]
 > > **Test setup** (no adapter, no second board): SCI9 talks on the
 > > board-internal **P109 (TX) / P110 (RX)** pair, which runs through
@@ -543,6 +568,8 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 5 — interrupts: IRQ-mode UART echo + heartbeat (`slice05_echo`)
 >
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S5.
+>
 > **Automated two-board regression (`slice05_rig`) — preferred:** connect
 > R3 D0 ↔ R4 D1, R3 D1 ↔ R4 D0, D3 ↔ D3, and GND ↔ GND.
 > Both boards remain connected over USB. The R4's D1 is TX and D0 is RX;
@@ -562,9 +589,9 @@ Two rules for every upload, from the course's verified procedure:
 > as inputs so its TX driver cannot interfere with the R3 bootloader.
 > Never send host commands to the R3 port while the R4 drives its RX pin.
 >
-> - `arduino/sketches/slice05-reference`: Arduino-core SCI9 register dump
->   and echo reference at 9600; also the safe staging image for R3 uploads.
-> - `arduino/sketches/slice05-controller`: autonomous R3 checker at 115200.
+> - `slice05-reference`: Arduino-core SCI9 register dump and echo
+>   reference at 9600; also the safe staging image for R3 uploads.
+> - `slice05-controller`: autonomous R3 checker at 115200.
 >   It generates eight **continuous 4096-byte UART bursts**, receives the
 >   uppercase echoes simultaneously, and compares every returned byte.
 > - `slice05_rig`: both SCI2 and SCI9 in IRQ mode at 115200, both using
@@ -707,6 +734,8 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 6 — the WiFi AT channel (`slice06_at`)
 >
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S6.
+>
 > Proves the mission-critical claim: the RA4M1 drives **SCI1**
 > (P501 = TX, P502 = RX, board-internal to the ESP32-S3) and the
 > ESP32-S3's AT server answers. The firmware sends `AT\r\n` once every
@@ -724,8 +753,8 @@ Two rules for every upload, from the course's verified procedure:
 > monitor is `$PORT` at **115200 8N1** (`arduino-cli monitor` asserts
 > DTR, which the bridge's CDC requires for output — a raw `SerialPort`
 > reader must set `DtrEnable` or it will capture nothing). The run is
-> gated by the bench line R3 D3 → R4 D3: `arduino/sketches/slice06-gate`
-> (on the R3) holds the line high 30 s, low 50 s, cycling; the R4
+> gated by the bench line R3 D3 → R4 D3: `slice06-gate` (on the R3) holds
+> the line high 30 s, low 50 s, cycling; the R4
 > firmware runs one test per falling edge and re-arms on the rising
 > edge, so one flash serves many runs. Upload the R4 first (its D0/D1
 > stay inputs; the R3's upload shares its own D0/D1 with the cross-wire).
@@ -782,11 +811,13 @@ Two rules for every upload, from the course's verified procedure:
 >
 > ### Slice 7 — PWM, the LED breathes (`slice07_breathe`)
 >
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S7.
+>
 > Proves the GPT PWM driver: saw-wave PWM on **D6** at exactly 1 kHz
 > (PCLKD/1, `GTPR = 47999`, 48 000 duty steps) with a sine duty profile,
 > while the D13 heartbeat keeps ticking. The measurement is instrumented:
-> D6 is wired to the R3's **D2 (INT0)** and `arduino/sketches/
-> slice07-measure` measures duty and period edge-by-edge — no LED, no
+> D6 is wired to the R3's **D2 (INT0)** and the R3 sketch
+> `slice07-measure` measures duty and period edge-by-edge — no LED, no
 > eyeballing. Per gate round (R3 D3 → R4 D3, the slice 6 pattern) the
 > firmware runs a 1 s settle, a duty staircase (0/25/50/75/100%, 2 s per
 > step — the two extremes exercise `GTUDDTYC.OADTY` and the
@@ -872,11 +903,13 @@ Two rules for every upload, from the course's verified procedure:
 
 > ### Slice 8 — ADC, the chip senses (`slice08_adc`)
 >
+> *Historical record, retired 2026-10-20:* repeat it in the `6649d4c` worktree (note at the top of Testing on hardware). Current check: `validation/`, S8.
+>
 > Proves the ADC140 driver: single-shot, software-triggered, blocking
 > reads on **A0** (raw + millivolts at 4 Hz) through the slice-4 SCI9
 > monitor path, while the D13 heartbeat keeps ticking. The measurement
 > is instrumented: R3 **D5** drives a PWM duty staircase straight into
-> R4 **A0** (`arduino/sketches/slice08-source`), and per gate round
+> R4 **A0** (R3 sketch `slice08-source`), and per gate round
 > (R3 D3 → R4 D3, the slice 6/7 pattern) the firmware averages five
 > 1.5 s windows — 631 650 samples each — one window per duty step. The
 > mean of a PWM wave over whole periods is duty × VREF, so the window
@@ -972,6 +1005,300 @@ Two rules for every upload, from the course's verified procedure:
 > `ADCSR` before theorizing (the poll bound is thousands of times the
 > computed conversion time — reaching it is a fault, not a short
 > wait).
+
+### Slice 9 — native USB CDC (verified on WiFi)
+
+> [!NOTE]
+> **Historical record.** None of the Slice 9 programs and scripts named
+> below were ever committed:
+>
+> - `slice09_cdc.rs` and `test-slice09-cdc.ps1`;
+> - `slice09_rig.rs` and `test-slice09.ps1`;
+> - `noop.rs` and the other `slice09_*` probes.
+>
+> All of them were deleted on 2026-10-20, so the commands in this
+> subsection cannot be repeated. The results stand as recorded. The current
+> Slice 9 check is `validation/` (S9, knock, `!`/`@`); its R4 image arms
+> the same knock and serves the same echo and ticks.
+
+**Slice binary:** `crates/test-firmware/src/bin/slice09_cdc.rs`. It prints a
+banner on the SCI9 monitor, leaves the connector with the bridge for a 3 s
+upload window, takes it, then enumerates as a native CDC port
+(VID 2341 / PID 006D, product `UNO R4 slice09`). It echoes what it receives
+and prints `tick N` about once per second. The opt-in bootloader knock is
+armed.
+
+Build from `crates/test-firmware/`, then upload through the bridge:
+
+```powershell
+cargo objcopy --release --features usb --bin slice09_cdc -- -O binary slice09_cdc.bin
+arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file slice09_cdc.bin
+```
+
+Evaluate from `crates/test-firmware/`. The script finds the native port by
+USB identity, not by a remembered COM number:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-slice09-cdc.ps1 -Knock
+```
+
+It checks the following:
+
+- **Ticks:** every line is `tick N`, the numbers are consecutive, and no gap
+  exceeds 1.5 s.
+- **Echo:** printable payloads of 1–4096 bytes come back exactly, with tick
+  lines stripped first.
+- **Knock (`-Knock`):** a 1200-baud open of the native port makes the
+  native port disappear and the bridge (PID 1002) return.
+
+**Uploading while the slice binary holds the connector** takes two steps.
+Either open the native port at 1200 baud (the knock) or double-tap RESET.
+Then run a standard `arduino-cli upload` on the bridge port that returns.
+
+A single command aimed at the native port fails with
+`No device found on COMx`, including with
+`--upload-property upload.wait_for_upload_port=true`. The bootloader holds,
+but the bridge forwards `bossac` only after its own 1200-baud touch.
+Uploads to an R4 already held in bootloader also failed whenever that touch
+was disabled. This was observed with both a knock hold and a physical
+double-tap hold.
+
+**Diagnostic rig, retired 2026-10-20.** None of its three parts was ever
+committed, and all were deleted, so the rig cannot be rebuilt. The results
+below were recorded with it.
+
+The rig's parts were:
+
+- R3: `slice09-rig.ino` (removed).
+- R4: `slice09_rig.rs`, features `usb,uart-irq` (removed).
+- Windows host: `test-slice09.ps1` (removed).
+
+The R3 is the stable host endpoint while the R4 changes USB identity. The
+pair negotiates its own diagnostic contract (`H` + raw version 9), then allows
+one outstanding request. Replies carry a sequence, length, hex payload and
+checksum. Hex encoding keeps register values from becoming commands.
+
+Both R3 serial links run at **9600 8N1**. The R4 releases SCI2 TX (P302) to
+input between replies.
+
+**Shared-RX limitation:** the PC's bytes and the R4's TX share the R3's only
+RX input. While any R4 program keeps SCI2 TX driven, PC-written R3 commands,
+`!`/`@` included, do not reach the R3. This was reproduced with the R3
+sketch `utility-req-res-reset` (since removed, never committed) +
+`slice08_req_res_reset`: rows kept flowing and
+`!!!`/`@@@` had no effect. With the R4 held in bootloader, `!!!` worked.
+So the R3 reset path only works when the R4 releases or idles that pin.
+
+R3 commands, sent without line endings:
+
+| Command | Effect |
+| --- | --- |
+| `h` | renegotiate |
+| `?` | snapshot |
+| `u` | take native USB |
+| `r` | detach and release |
+| `t` | trace record |
+| `v` | toggle native ticks |
+| `w` | enable the USB interrupt bell |
+| `b` | arm the bootloader knock |
+| `x` | read installed bootloader bytes (read-only) |
+| `y` | diagnostic: write the boot magic and read it back |
+| `z` | diagnostic: bare R4 software reset |
+| `!` | single RESET pulse |
+| `@` | double RESET pulse |
+
+The 94-byte snapshot also reports the reset cause captured at boot
+(RSTSR0/2/1, manual §5.2) and the tick flag. The host script uses the tick
+flag to switch ticks on or off rather than blindly toggling them.
+
+Build/stage sequence, as it was run (none of it can be repeated now):
+
+1. Upload `noop.bin` to the R4 first, so its UART TX cannot disturb the AVR
+   bootloader.
+2. Compile and upload the R3 sketch `slice09-rig` with `--verify`.
+3. Upload `slice09_rig.bin` to the R4.
+
+```powershell
+cargo objcopy --release --features usb,uart-irq --bin slice09_rig -- -O binary slice09_rig.bin
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-slice09.ps1 -Mode Echo -R3Port $uartPort
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-slice09.ps1 -Mode Soak -R3Port $uartPort
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-slice09.ps1 -Mode Echo -R3Port $uartPort -EnableWake
+```
+
+`Soak` is a functional tick run with a 30 s default. **Owner amendment,
+2026-10-20:** the hour-long soak requirement is cancelled and no
+replacement duration is required. Logs and results go to
+`target/slice09-hardware/`.
+
+**Witnessed on WiFi, 2026-10-20:**
+
+`slice09_cdc`:
+
+- Native COM port present while the bridge port was absent.
+- 9 consecutive ticks (maximum gap 1.03 s) and 48 exact echoes
+  (21,744 bytes each direction).
+- Knock: native gone and bridge back after 1.19 s. A standard upload on the
+  bridge then succeeded, and the native port returned with ticks and echo
+  passing again.
+
+`slice09_rig`:
+
+- Polled echo: 210 exact cases, 73,450 bytes each direction.
+- Interrupt bell: 210 cases, 2,850 bell interrupts.
+- 30 s tick run: 29 consecutive ticks, maximum gap 1.07 s.
+- SCI2 `ov=0 er=0` throughout.
+- Two-step upload: knock, R4 silent (held) 3 s later, then a standard
+  bridge upload succeeded.
+
+R3 D4 → R4 RESET:
+
+- `!` restarts the R4.
+- `@` returns the bridge with the bootloader held.
+
+Build matrix:
+
+- Release firmware builds for WiFi and Minima, with and without
+  `usb,uart-irq`, have no warnings.
+- 58 host tests pass on each map.
+
+**Bootloader knock fix.** The knock first failed: the R4 came back running
+the application, with RSTSR1.SWRF = 1, so no RES-pin reset followed. The
+cause:
+
+- The installed bootloader is byte-identical to the `dfu_wifi.hex` that
+  ArduinoCore-renesas 1.6.0 ships.
+- At offset 0x21EA it compares one 32-bit load of `VBTBKR0..3` with
+  `0x07738135`.
+- On this silicon that load returns `VBTBKR0` as the most significant byte.
+  Bytes written `35 81 73 07` read back as `0x35817307`.
+
+The HAL now writes the magic big-endian, still with 8-bit accesses
+(§11.2.6). After that change, a bare software reset holds the bootloader.
+
+The same disassembly answers part of OQ-USB-1. The `VBTBKR[1] = 40` marker
+that `UsbPort::take` writes asks the bootloader to drive P408 high, delay,
+drive it low and clear the byte at the next boot.
+
+Earlier on 2026-10-20, the R3 trace exposed two USB defects that were then
+fixed:
+
+- A control-OUT status acknowledgement must use CCPL even while CTSQ still
+  reads data stage 3 (§27.2.25 / Figure 27.16).
+- Class OUT pipes need arming after configuration.
+
+**Physical replug, witnessed 2026-10-20 21:19:**
+
+1. The owner unplugged and replugged the R4 with `slice09_cdc` installed.
+2. The bridge appeared during the upload window, then native COM7.
+3. Ticks (5 consecutive) and echo (16 exact cases) passed.
+4. The knock returned the bridge after 1.2 s.
+5. A standard `arduino-cli upload` on the bridge succeeded.
+6. The native port came back and passed again.
+
+**Still open:**
+
+- UNO R4 Minima is hardware-unverified, including its knock.
+- `cargo doc` with `-D warnings` still fails on two pre-existing links
+  outside USB (`adc/adc.rs` `ADST_POLL_LIMIT`, `pwm/mod.rs`
+  `Pwm::set_duty_cycle`).
+- `Research/slice-09-research.md` keeps its original §10.1, §10.6 and §10.7
+  statements, each followed by a dated correction.
+
+### All-in-one validation — Slices 1–9 (`validation/`)
+
+The validation pair re-proves Slices 1–9 on the existing bench without
+swapping firmware between slices. It has three parts:
+
+- `validation/r3-validator/r3-validator.ino`: the R3 controller.
+- `crates/test-firmware/src/bin/r4_validator.rs`: one R4 image built on
+  this HAL, with features `usb,uart-irq`.
+- `validation/validate.ps1`: the Windows host side. It also checks the two
+  slices only a PC can see: Slice 4 on the bridge monitor and Slice 9 on the
+  native USB port.
+
+The R3 and R4 exchange framed requests (`STX` body `ETX`) at 9600 8N1 on
+SCI2. R4 replies contain only `A–Z`, `0–9` and spaces, while PC commands to
+the R3 are lowercase, `?`, `!` or `@`. That keeps the shared R3 RX
+unambiguous, and the R4 releases SCI2 TX between replies, so `!`/`@` always
+reach the R3. Both source files document the full contract.
+
+Each check:
+
+| Slice | How it is checked | Pass condition |
+| --- | --- | --- |
+| 1 | The R4 drives D3 with the HAL `Delay` (20 ms phases); the R3 times the edges on INT1 | 22 edges, every phase 20 000 µs ± 2 % |
+| 2 | The R3 drives D3 low, then high; the R4 reads it | reads 0, then 1 |
+| 2 (button) | The R3 presses R4 D3 like a switch to GND (LOW for 200 ms, then released to input); the R4 times it | press ~100 ms after the request, held ~200 ms |
+| 3 | 10 identify round trips over SCI2 | 10/10 |
+| 4 | The R4 prints a token on SCI9; the host reads the bridge port | token seen |
+| 5 | 4096-byte burst through the interrupt-driven SCI2 echo | byte-exact, `OV 0 ER 0` |
+| 5 (traits) | The same burst, echoed only through the HAL's `embedded-io` 0.7 `Read`/`Write` on `&UartIrq` (blocking `read`, `write_all`, `flush`) | byte-exact, `OV 0 ER 0` |
+| 6 | `AT` to the ESP32-S3 over SCI1 | `OK` (received bytes shown in hex) |
+| 7 | D6 PWM at 0/25/50/75/100 %, measured by the R3 on INT0 | period 1000 ± 10 µs, duty ± 10/1000, 0/100 % flat |
+| 8 | R3 D5 duty 0/64/127/191/255 into A0; the R4 averages 200 ms windows | mean within ± 82 LSB (2 % of 12-bit full scale) |
+| 9 | Native CDC after R3 `u`, while the bridge is gone | ticks consecutive, max gap ≤ 1.5 s, exact echoes, state Configured |
+| knock | 1200-baud open of the native port | bridge back, R4 silent (bootloader held) |
+| `!` / `@` | R3 RESET pulses | `!` restarts the validator; `@` holds the bootloader |
+
+Build from `crates/test-firmware/`. Like every binary there, the image uses
+the crate's `memory.x` (FLASH ORIGIN 0x4000):
+
+```powershell
+cargo objcopy --release --features usb,uart-irq --bin r4_validator -- -O binary r4_validator.bin
+```
+
+Flash, from the repo root. Upload the R3 while the R4's SCI2 TX is quiet:
+the R4 in bootloader, or already running `r4_validator`.
+
+```powershell
+arduino-cli compile --fqbn arduino:avr:uno --build-path target/validation-r3-build validation/r3-validator
+arduino-cli upload -p $uartPort --fqbn arduino:avr:uno --input-file target/validation-r3-build/r3-validator.ino.hex --verify
+arduino-cli upload -p $PORT --fqbn arduino:renesas_uno:unor4wifi --input-file crates/test-firmware/r4_validator.bin
+```
+
+Run, from the repo root. The script finds the R3 (2341:0043), the bridge
+(2341:1002) and the native port (2341:006D) by USB identity:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\validation\validate.ps1
+```
+
+R4 D2 is free/open: the push button is no longer part of the bench
+(AGENTS.md). The R3 acts as the Slice 2 button on the existing D3 line.
+
+`-SkipUsb` leaves out Slice 9 and the knock. Without the host script, open
+the R3 at 9600 and send `a` for S1–S8, or one letter per check (`?` lists
+them). Results go to `target/validation/`.
+
+**Witnessed on WiFi, 2026-10-20:** 14/14 checks passed in one host run, on
+the HAL ported to `embedded-io` 0.7.1:
+
+- **S1:** phases 20 008–20 012 µs.
+- **S2 button:** press seen 100 ms after the request, held 199 ms.
+- **S5:** 4096/4096 bytes, `OV 0 ER 0`.
+- **S5 traits:** 4096/4096 bytes through `embedded_io::Read`/`Write`,
+  `OV 0 ER 0`.
+  - The blocking `read` path runs at least once per run: the R4 calls
+    `read` before the R3 starts sending.
+  - How often it waited after that is not instrumented.
+- **Host tests (same day):** 60 pass on each map with `usb,uart-irq`.
+  - Two of them check the 0.7 write contract on the CDC port: trait
+    `write` returns a non-zero count and trait `write_all` completes.
+  - The CDC `Ok(0)` guard itself cannot be reached through
+    `usbd-serial` 0.2.2, which reports a full buffer as `WouldBlock`.
+- **S6:** `OK\r\n`.
+- **S7:** duty 249/499/749 per mille at 998–1000 µs.
+- **S8:** means 10/1047/2055/3070/4095.
+- **S9:** 5 consecutive ticks and 6152 echoed bytes each direction, with the
+  bridge absent.
+- **Knock, `!` and `@`:** passed.
+
+Minima builds, but is hardware-unverified.
+
+Two earlier runs showed an S6 reply of 7 bytes with no `OK` (the first run,
+before the hex dump existed), and an SCI2 `er=235` total. That total came
+after an R3 upload, whose 115200-baud traffic reaches the R4's 9600 RX; the
+burst check reports per-check deltas instead.
 
 ## License
 

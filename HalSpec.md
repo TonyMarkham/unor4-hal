@@ -102,8 +102,17 @@ src/
    Register-level detail: `PmnPFS` writes must unlock `PWPR` and relock, in a
    critical section.
 4. **Traits:** implement `embedded-hal` 1.0 (`digital`, `delay`, `spi`, `i2c`
-   as applicable), `embedded-hal-nb`, and `embedded-io`/`embedded-io` 0.6 for
-   UART and USB. `core::fmt::Write` on every byte sink.
+   as applicable), `embedded-hal-nb`, and `embedded-io` 0.7 for UART and
+   USB. `core::fmt::Write` on every byte sink.
+
+   **0.7 contract (adopted 2026-10-20):**
+   - `Read::read` blocks until at least one byte is available, then returns
+     without waiting for more.
+   - `Write::write` never returns `Ok(0)` for a non-empty buffer.
+   - Error types implement `core::error::Error`.
+
+   Version 0.7.1 is MIT OR Apache-2.0 with MSRV 1.81, so the license audit
+   holds.
 5. **Register access only through the PAC** (`ra4m1` crate), except where the
    PAC is missing something (e.g. `PWPR` unlock sequence) — then raw
    `volatile` access with a comment citing the hardware manual section.
@@ -342,7 +351,8 @@ M2 is the mission-critical one; M4 is the largest single item (see OQ-3).
 - **OQ-8** GPT PWM duty mechanics — polarity, the 0%/100% extremes, and
   the inherited GPT state after a bootloader handoff. — Verified on
   UNO R4 WiFi in Slice 7 (2026-10-19), measured edge-by-edge by the R3
-  rig (`arduino/sketches/slice07-measure`): with
+  rig (`slice07-measure`; removed 2026-10-20, restorable from git
+  `6649d4c`): with
   `GTIOR.GTIOx[4:0] = 0b0_10_01` (high at cycle end, low at compare
   match) the high fraction is exactly the compare value over `GTPR + 1`
   (25/50/75% measured at 250/500/750 per-mille ±1 tick of 48 000);
@@ -359,8 +369,9 @@ M2 is the mission-critical one; M4 is the largest single item (see OQ-3).
   UNO R4 — the board runs the analog domain at 5 V while the digital
   VCC is 3.3 V, which does not satisfy the datasheet accuracy tables'
   `VCC = AVCC0` condition. — Verified on UNO R4 WiFi in Slice 8
-  (2026-10-20), measured by the R3 rig (`arduino/sketches/
-  slice08-source`, R3 D5 → R4 A0): both rails land exactly on the code
+  (2026-10-20), measured by the R3 rig (`slice08-source`, removed
+  2026-10-20 and restorable from git `6649d4c`; R3 D5 → R4 A0): both
+  rails land exactly on the code
   range (duty 0 → 0–7 LSB, duty 255 → 4095 with min=max — solid DC),
   and the PWM staircase 0/25/50/75/100% reads 7/1045/2051/3072/4095
   against expected 0/1028/2040/3068/4095 — worst error +17 LSB

@@ -1,5 +1,7 @@
 # Slice 8 research — ADC (ADC140)
 
+> **2026-10-20:** the per-slice binary named here (`slice08_adc.rs`) and its R3 sketch were retired in favour of the validation pair (README, All-in-one validation; S8). Both restore from git `6649d4c`.
+
 > Planning notes assembled 2026-10-19, before any Slice 8 code. Verified
 > facts are cited to the hardware manual, the datasheet, or the PAC;
 > cross-check data (Arduino core, Arduino reference) is labeled as such.
@@ -392,7 +394,8 @@ firmware trick that makes the PWM-staircase observable work without a
 filter (§9). Files touched: `crates/unor4-hal/src/adc/` (new module,
 ~4–6 files), `peripherals.rs` (+1 field), `lib.rs` (+1 mod),
 `src/tests/adc.rs` (new), test-firmware `slice08_adc.rs` (+ Cargo.toml
-`[[bin]]`), `arduino/sketches/slice08-source` (R3), README subsection,
+`[[bin]]`), the R3 sketch `slice08-source` (removed from the tree
+2026-10-20; restorable from git `6649d4c`), README subsection,
 CHANGELOG at release time.
 
 ## 13. Source list for implementation

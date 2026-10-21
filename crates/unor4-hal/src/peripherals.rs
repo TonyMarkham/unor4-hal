@@ -55,6 +55,16 @@ pub struct Peripherals {
     /// on the WiFi board; on the Minima the same chip pin sits on the
     /// SWD connector ("(24) RX on SWD connector").
     pub sci1_rx: gpio::Pin<'5', 2, gpio::Input>,
+    /// USBFS — the USB 2.0 Full-Speed module, unconfigured (the USB
+    /// driver claims it exactly once; feature `usb`). Device mode,
+    /// full-speed; see `usb/mod.rs` for the mux rules.
+    #[cfg(feature = "usb")]
+    pub usbfs: ra4m1::USBFS,
+    /// P408 — the WiFi board's USB mux control (board-internal; drive
+    /// high to hand the connector to the RA4M1). Only meaningful behind
+    /// feature `usb`; on the Minima the connector has no switch.
+    #[cfg(feature = "usb")]
+    pub usb_mux: gpio::Pin<'4', 8, gpio::Input>,
     /// P109 — SCI9 TX, wired through the level translator to the
     /// ESP32-S3. Not a header pin on the WiFi board (on the Minima the
     /// same chip pin is header D11, already claimed by [`gpio::Pins`]
@@ -109,6 +119,10 @@ impl Peripherals {
             gpt166: device.GPT166,
             gpt167: device.GPT167,
             adc140: device.ADC140,
+            #[cfg(feature = "usb")]
+            usbfs: device.USBFS,
+            #[cfg(feature = "usb")]
+            usb_mux: gpio::Pin::new(),
             sci1_tx: gpio::Pin::new(),
             sci1_rx: gpio::Pin::new(),
             #[cfg(feature = "wifi")]

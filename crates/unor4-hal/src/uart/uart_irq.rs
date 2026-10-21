@@ -491,7 +491,9 @@ impl<S: SciChannel, const RX: usize, const TX: usize> embedded_hal_nb::serial::W
 
 /// `embedded-io` type plumbing: the error type all blocking IO
 /// operations on the reference handle report.
-impl<S: SciChannel, const RX: usize, const TX: usize> embedded_io::Io for &UartIrq<S, RX, TX> {
+impl<S: SciChannel, const RX: usize, const TX: usize> embedded_io::ErrorType
+    for &UartIrq<S, RX, TX>
+{
     type Error = ReadError;
 }
 
@@ -501,37 +503,39 @@ impl embedded_io::Error for ReadError {
     }
 }
 
-/// `embedded-io` receive: `ReadError::Empty` is the would-block signal
-/// (nothing new since the last read).
-impl<S: SciChannel, const RX: usize, const TX: usize> embedded_io::blocking::Read
-    for &UartIrq<S, RX, TX>
-{
+/// `embedded-io` receive, per the 0.7 `Read` contract: blocks until at
+/// least one byte is in the RX ring, then returns what is there without
+/// waiting for more. Each attempt takes the critical section only to pop,
+/// so the RX interrupt keeps filling the ring between attempts.
+impl<S: SciChannel, const RX: usize, const TX: usize> embedded_io::Read for &UartIrq<S, RX, TX> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         if buf.is_empty() {
             return Ok(0);
         }
-        let mut n = 0;
-        cs::with(|_| {
-            while n < buf.len() {
-                match self.rx.pop() {
-                    Some(byte) => {
-                        buf[n] = byte;
-                        n += 1;
+        loop {
+            let mut n = 0;
+            cs::with(|_| {
+                while n < buf.len() {
+                    match self.rx.pop() {
+                        Some(byte) => {
+                            buf[n] = byte;
+                            n += 1;
+                        }
+                        None => break,
                     }
-                    None => break,
                 }
+            });
+            if n > 0 {
+                return Ok(n);
             }
-        });
-        if n == 0 { Err(ReadError::Empty) } else { Ok(n) }
+        }
     }
 }
 
 /// `embedded-io` transmit: blocks until at least one byte is queued
 /// (never returns `Ok(0)` for a non-empty buffer) and flushes until the
 /// wire is idle.
-impl<S: SciChannel, const RX: usize, const TX: usize> embedded_io::blocking::Write
-    for &UartIrq<S, RX, TX>
-{
+impl<S: SciChannel, const RX: usize, const TX: usize> embedded_io::Write for &UartIrq<S, RX, TX> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         if buf.is_empty() {
             return Ok(0);

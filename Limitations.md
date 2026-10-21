@@ -73,7 +73,8 @@ This is not a Rust failure. A C++ sketch writing to the same pins (`Serial2`)
 is equally silent. The fix in Part 7 puts a USB-UART bridge on D0/D1 —
 anything that turns those header pins into their own USB port. Verified
 cheapest option: an R3 running a 6-line relay sketch
-(`arduino/sketches/slice03-adapter`), no purchase needed; a ~$5 USB-UART
+(`slice03-adapter`; removed from the tree 2026-10-20, restorable from git
+`6649d4c`), no purchase needed; a ~$5 USB-UART
 adapter works identically. The longer-term fix (monitor with no extra
 board) needs shortcoming #2 or #3 solved.
 

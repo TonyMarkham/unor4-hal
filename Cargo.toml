@@ -17,11 +17,16 @@ cortex-m-rt        = { version = "0.7.7", features = ["set-vtor"] }
 critical-section   = { version = "1.2.0" }
 embedded-hal       = { version = "1.0.0" }
 embedded-hal-nb    = { version = "1.0.0" }
-embedded-io        = { version = "0.4.0" }
+embedded-io        = { version = "0.7.1" }
 nb                 = { version = "1.1.0" }
 
 panic-halt         = { version = "1.0.0" }
 ra4m1              = { version = "0.2.0" }
+
+# `usb` feature only: usb-device 0.3 bus-hal + the CDC-ACM class crate.
+# Both MIT (license audit 2026-10-20, Research/slice-09-research.md §7).
+usb-device         = { version = "0.3.2" }
+usbd-serial        = { version = "0.2.2" }
 
 unor4-hal = { path = "crates/unor4-hal" }
 

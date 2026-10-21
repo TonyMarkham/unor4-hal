@@ -6,12 +6,14 @@ edition      = { workspace = true }
 [features]
 # Forward the library's board map (HalSpec §3): the lib's default
 # features stay off here so exactly one map lands in each image.
-#   wifi image:   cargo build --release
-#   minima image: cargo build --release --no-default-features --features minima
+#   wifi image:   cargo build --release --features usb,uart-irq
+#   minima image: cargo build --release --no-default-features --features minima,usb,uart-irq
 default  = ["wifi"]
 minima   = ["unor4-hal/minima"]
 wifi     = ["unor4-hal/wifi"]
 uart-irq = ["unor4-hal/uart-irq"]
+usb      = ["unor4-hal/usb"]
+usb-trace = ["usb", "unor4-hal/usb-trace"]
 
 
 [dependencies]
@@ -21,49 +23,13 @@ embedded-hal = { workspace = true }
 cortex-m-rt  = { workspace = true, features = ["device"] }
 panic-halt   = { workspace = true }
 ra4m1        = { workspace = true }
+usb-device   = { workspace = true }
+usbd-serial  = { workspace = true }
+embedded-io  = { workspace = true }
 
+# All-in-one Slices 1-9 responder; its R3 peer and host script live in
+# the repo-root `validation/` directory.
 [[bin]]
-name = "slice05_echo"
-path = "src/bin/slice05_echo.rs"
-required-features = ["uart-irq"]
-
-[[bin]]
-name = "slice05_rig"
-path = "src/bin/slice05_rig.rs"
-required-features = ["uart-irq"]
-
-[[bin]]
-name = "slice05_diag"
-path = "src/bin/slice05_diag.rs"
-required-features = ["uart-irq"]
-
-[[bin]]
-name = "slice05_rxpoll"
-path = "src/bin/slice05_rxpoll.rs"
-
-[[bin]]
-name = "slice05_uno"
-path = "src/bin/slice05_uno.rs"
-required-features = ["uart-irq"]
-
-[[bin]]
-name = "slice05_s9"
-path = "src/bin/slice05_s9.rs"
-required-features = ["uart-irq"]
-
-[[bin]]
-name = "slice06_at"
-path = "src/bin/slice06_at.rs"
-required-features = ["uart-irq"]
-
-[[bin]]
-name = "slice07_breathe"
-path = "src/bin/slice07_breathe.rs"
-
-[[bin]]
-name = "slice08_adc"
-path = "src/bin/slice08_adc.rs"
-
-[[bin]]
-name = "slice08_probe"
-path = "src/bin/slice08_probe.rs"
+name = "r4_validator"
+path = "src/bin/r4_validator.rs"
+required-features = ["usb", "uart-irq"]

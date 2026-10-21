@@ -35,6 +35,8 @@ pub mod intc;
 pub mod peripherals;
 pub mod pwm;
 pub mod uart;
+#[cfg(feature = "usb")]
+pub mod usb;
 
 #[cfg(test)]
 mod tests;

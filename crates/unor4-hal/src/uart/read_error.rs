@@ -15,3 +15,17 @@ pub enum ReadError {
     /// completeness).
     Parity,
 }
+
+impl core::fmt::Display for ReadError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Empty => "no byte received",
+            Self::Overrun => "receive overrun",
+            Self::Framing => "framing error",
+            Self::Parity => "parity error",
+        })
+    }
+}
+
+/// `embedded-io` 0.7 (feature `uart-irq`) requires `core::error::Error`.
+impl core::error::Error for ReadError {}

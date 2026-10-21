@@ -9,6 +9,8 @@ mod delay;
 mod pins;
 mod pwm;
 mod uart;
+#[cfg(feature = "usb")]
+mod usb;
 
 mod intc;
 #[cfg(feature = "uart-irq")]

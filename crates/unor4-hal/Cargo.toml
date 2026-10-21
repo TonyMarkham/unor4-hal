@@ -15,6 +15,8 @@ ra4m1              = { workspace = true }
 embedded-hal-nb    = { workspace = true, optional = true }
 embedded-io        = { workspace = true, optional = true }
 nb                 = { workspace = true, optional = true }
+usb-device         = { workspace = true, optional = true }
+usbd-serial        = { workspace = true, optional = true }
 
 [features]
 # Board pin maps (HalSpec §3): exactly one must be selected. `wifi` is
@@ -27,3 +29,7 @@ wifi     = []
 # through `intc`. Pulls the serial trait crates (license-audited,
 # MIT OR Apache-2.0 — see README).
 uart-irq = ["dep:embedded-hal-nb", "dep:embedded-io", "dep:nb"]
+# USB device (Slice 9): the USBFS `usb-device` bus adapter + CDC-ACM
+# wrapper. Opt-in per HalSpec §3; see `usb/mod.rs` for the mux rules.
+usb      = ["dep:usb-device", "dep:usbd-serial", "dep:embedded-io"]
+usb-trace = ["usb"]
