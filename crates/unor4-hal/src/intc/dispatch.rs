@@ -10,7 +10,10 @@
 //! completed write that installed it, and no two writers ever target
 //! the same slot. Nothing else is needed on a single-core MCU.
 
-use core::cell::UnsafeCell;
+use core::{
+    cell::UnsafeCell,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 /// Number of IELSR slots on the RA4M1 — also the NVIC IRQ count (SVD
 /// `__INTERRUPTS`; the PAC's `rt` vector table has the same 32 entries).
@@ -63,11 +66,19 @@ pub(crate) fn call_handler(slot: usize) {
     }
 }
 
-/// Clears the event latch, then services the registered handler.
+/// One bit per slot: set when this dispatcher acknowledged the slot's
+/// request (cleared `IELSRn.IR`), so a driver that reads the request flag
+/// as a latch (a switch's activation edge) still sees the event after its
+/// interrupt ran ([`crate::intc::Ielsr::take_request`]).
+pub(crate) static ACKNOWLEDGED: AtomicU32 = AtomicU32::new(0);
+
+/// Records the acknowledgement, clears the event latch, then services the
+/// registered handler.
 /// The SCI RXI/TXI handlers use this order, cross-checked against
 /// FSP's non-FIFO SCI interrupt flow. The handler services the SCI
 /// source (RDR/TDR/error flags); this clear only acknowledges the ICU.
 fn dispatch(slot: usize) {
+    ACKNOWLEDGED.fetch_or(1 << slot, Ordering::AcqRel);
     clear_request_bit(slot);
     call_handler(slot);
 }

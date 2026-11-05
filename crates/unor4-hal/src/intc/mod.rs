@@ -55,45 +55,19 @@
 //! [`critical_section`]: https://docs.rs/critical-section/latest/critical_section/
 
 mod dispatch;
+mod enable_interrupts;
 mod event;
 mod ielsr;
-
-/// Discards the bootloader's interrupt routes before any HAL driver links
-/// an event. RA4M1 manual R01UH0887EJ0100 §13.4.2 prohibits selecting the
-/// same event in multiple IELSR registers, even when an old NVIC line is
-/// disabled. The UNO R4 bootloader leaves SCI9 routed in slots 4–7.
-pub(crate) fn init() {
-    critical_section::with(|_| {
-        let nvic = unsafe { &*cortex_m::peripheral::NVIC::PTR };
-        let icu = unsafe { &*ra4m1::ICU::PTR };
-        unsafe { nvic.icer[0].write(u32::MAX) };
-        for slot in &icu.ielsr {
-            slot.write(|w| unsafe { w.bits(0) });
-        }
-        unsafe { nvic.icpr[0].write(u32::MAX) };
-        cortex_m::asm::dsb();
-        cortex_m::asm::isb();
-    });
-}
-
-/// Unmasks CPU interrupts after startup and handler registration.
-///
-/// The UNO R4 bootloader leaves PRIMASK set, and cortex-m-rt does not
-/// clear it. Call once from main after attaching interrupt-driven
-/// peripherals. Enabling an individual IELSR slot does not unmask the CPU.
-///
-/// # Safety
-/// Must not be called inside a critical section or any other region
-/// whose correctness requires interrupts to remain globally disabled.
-pub unsafe fn enable_interrupts() {
-    unsafe { cortex_m::interrupt::enable() };
-}
+mod init;
 
 // ---------------------------------------------------------------------------------------------- //
 
 pub use dispatch::vector_table;
+pub use enable_interrupts::enable_interrupts;
 pub use event::Event;
 pub use ielsr::Ielsr;
+
+pub(crate) use init::init;
 
 // `register_handler` has no caller until `uart-irq` is on (or the host
 // tests run); `call_handler` and `ALL_EVENTS` are test-only.

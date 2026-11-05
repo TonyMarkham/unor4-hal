@@ -1,4 +1,4 @@
-//! The bench's USB identities, as proven on this bench (README,
+//! The bench's USB identities, as proven on this bench (Validation.md,
 //! All-in-one validation).
 
 /// Arduino's USB vendor ID, shared by the R3 and the R4's ports.

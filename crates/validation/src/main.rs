@@ -1,10 +1,20 @@
 //! Host side of the validation pair (`r3-validator` + `r4_validator`). It
-//! neither builds nor uploads: flash both boards first (README, Validation).
+//! neither builds nor uploads: flash both boards first (Validation.md).
 //!
-//! `validate all` runs the bench's full sequence: S1-S8, the S10 flash
-//! self-test and the S4 token, then S10 retention across three resets, then
-//! S9 and the knock (unless `--skip-usb`), then the reset bits. Exit code 0 only if every executed check passed; results go
-//! to `target/validation/<timestamp>.txt`.
+//! The R3 validator builds as three parts, each uploaded for its own
+//! session (the checks no longer fit the R3's 32 KB in one image).
+//! `validate all` runs the loaded part's session:
+//! - **part 1:** S1-S8, the S10 flash self-test and the S4 token, then S10
+//!   retention across three resets, then S9 and the knock (unless
+//!   `--skip-usb`), then the reset bits;
+//! - **part 2:** the first S11 checks (step, count, tick, queue, scenario,
+//!   reverse, wake, skip, elc), then the reset bits;
+//! - **part 3:** the later S11 checks (dirlead, countstop, cancelrace,
+//!   sleep, boot), then the reset bits.
+//!
+//! The other parts' checks are recorded as NOT RUN. Exit code 0 only if
+//! every executed check passed; results go to
+//! `target/validation/<timestamp>.txt`.
 
 #![deny(missing_docs)]
 
@@ -24,11 +34,15 @@ use crate::{
     cli::{Cli, Command},
     discover::{PID_BRIDGE, PID_R3, VID_ARDUINO, find_port},
     report::Report,
-    serial::{Monitor, R3},
+    serial::{Monitor, R3, R3_PARTS},
 };
 
 use clap::Parser as _;
 use std::{process::ExitCode, time::Duration};
+
+/// The R3 validator part with the boot-counter watch (`k`) and the USB
+/// take-over (`u`): S10 retention and S9 run only on it.
+const HOST_CHECKS_PART: u8 = 1;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -52,21 +66,25 @@ fn dispatch(cli: &Cli) -> Result<bool, String> {
         }
         Command::Slices { names } => {
             let (mut r3, mut monitor, bridge) = open_pair(cli)?;
-            slices::run(&mut r3, &mut monitor, &bridge, names, &mut report);
+            let part = r3_part(&mut r3)?;
+            slices::run(&mut r3, &mut monitor, &bridge, names, part, &mut report);
         }
         Command::S4 => {
             let (mut r3, mut monitor, bridge) = open_pair(cli)?;
+            let part = r3_part(&mut r3)?;
             slices::run(
                 &mut r3,
                 &mut monitor,
                 &bridge,
                 &["S4".to_owned()],
+                part,
                 &mut report,
             );
         }
         Command::Usb => {
             bridge_port(cli)?; // S9 needs the bench at rest: bridge port present
             let mut r3 = open_r3(cli)?;
+            need_host_checks_part(&mut r3, "S9")?;
             usb::run(&mut r3, &mut report);
         }
         Command::Reset { single, double } => {
@@ -86,6 +104,7 @@ fn dispatch(cli: &Cli) -> Result<bool, String> {
             min_boots,
         } => {
             let mut r3 = open_r3(cli)?;
+            need_host_checks_part(&mut r3, "S10 retention")?;
             match watch {
                 Some(seconds) => retention::watch(&mut r3, *seconds, *min_boots, &mut report),
                 None => retention::resets(&mut r3, *resets, &mut report),
@@ -98,18 +117,63 @@ fn dispatch(cli: &Cli) -> Result<bool, String> {
     Ok(report.failed() == 0)
 }
 
-/// Everything: S1-S8 + S10 flash + S4, S10 retention, S9 + knock, reset bits.
+/// The loaded part's session: its slice checks, the host checks on part 1
+/// (S10 retention, S9 + knock), the reset bits on every part. The other parts'
+/// checks are recorded as not run.
 fn run_all(cli: &Cli, report: &mut Report, skip_usb: bool) -> Result<(), String> {
     let (mut r3, mut monitor, bridge) = open_pair(cli)?;
-    println!("R3={} R4 bridge={bridge}", r3.name());
-    slices::run(&mut r3, &mut monitor, &bridge, &["all".to_owned()], report);
+    let part = r3_part(&mut r3)?;
+    println!(
+        "R3={} (validator part {part} of {R3_PARTS}) R4 bridge={bridge}",
+        r3.name()
+    );
+    slices::run(
+        &mut r3,
+        &mut monitor,
+        &bridge,
+        &["all".to_owned()],
+        part,
+        report,
+    );
     drop(monitor);
-    retention::resets(&mut r3, 3, report);
-    if !skip_usb {
-        usb::run(&mut r3, report);
+    if part == HOST_CHECKS_PART {
+        retention::resets(&mut r3, 3, report);
+        if !skip_usb {
+            usb::run(&mut r3, report);
+        }
+    } else {
+        slices::not_run("S10 retention", HOST_CHECKS_PART, report);
+        if !skip_usb {
+            slices::not_run("S9", HOST_CHECKS_PART, report);
+            slices::not_run("Knock", HOST_CHECKS_PART, report);
+        }
     }
     reset::run(&mut r3, report);
     Ok(())
+}
+
+/// The R3 validator part that answers on `r3`, or an error naming the fix.
+fn r3_part(r3: &mut R3) -> Result<u8, String> {
+    r3.part().ok_or_else(|| {
+        format!(
+            "the R3 on {} names no validator part; upload part 1, 2 or 3 of \
+             arduino/validation/r3-validator (Validation.md)",
+            r3.name()
+        )
+    })
+}
+
+/// Refuses `check` unless the R3 runs the part with the host-check commands.
+fn need_host_checks_part(r3: &mut R3, check: &str) -> Result<(), String> {
+    let part = r3_part(r3)?;
+    if part == HOST_CHECKS_PART {
+        Ok(())
+    } else {
+        Err(format!(
+            "{check} runs on R3 validator part {HOST_CHECKS_PART}; part {part} is loaded \
+             (Validation.md)"
+        ))
+    }
 }
 
 /// Opens the R3 validator port (9600 8N1), waits out the restart an open

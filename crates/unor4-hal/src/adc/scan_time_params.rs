@@ -2,7 +2,7 @@
 
 use crate::adc::Resolution;
 
-/// Everything [`calc_scan_time`](super::calc_scan_time) needs: the
+/// Everything [`calc_scan_time`](crate::adc::calc_scan_time) needs: the
 /// clocks the unit actually runs at, the sampling-state setting, and
 /// the conversion mode.
 ///

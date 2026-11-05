@@ -14,7 +14,7 @@ pub(crate) const LINK_BAUD: u32 = 9600;
 /// Drives or releases SCI2 TX (P302 = D1 on both maps). Released, the pin
 /// is a plain GPIO input and the SCI keeps running internally. Manual §19
 /// P302PFS: PMR b16 (peripheral), PDR b2; PWPR unlock (§19.5.1) around
-/// the write. Proven on this bench (README, Slice 9: shared-RX limitation).
+/// the write. Proven on this bench (Validation.md, Slice 9: shared-RX limitation).
 pub(crate) fn link_tx(enabled: bool) {
     let pfs = 0x4004_08C8 as *mut u32;
     let wanted = if enabled { 1 << 16 } else { 0 };

@@ -2,7 +2,15 @@
 //! re-derivable from manual §22.2.12 (TPCS ladder) and §22.2.20 (saw
 //! period = GTPR + 1), the same way the SCI baud pairs are.
 
-use crate::pwm::{PeriodError, calc_period};
+use crate::{
+    gpio::{
+        GptOutput, Gtioc,
+        pin_map::{D3, D5, D6, D9, D10, D11},
+    },
+    pwm::{PeriodError, calc_period},
+};
+
+use core::any::TypeId;
 
 const PCLKD_48MHZ: u32 = 48_000_000;
 
@@ -116,98 +124,47 @@ fn given_pclkd_48mhz_when_25mhz_requested_then_divisor_1_with_2_counts() {
     assert_eq!(params.gpr, 1);
 }
 
-/// The golden constructor surface: every header PWM pin's
-/// (engine, chip pin, output) triple from manual §19 Tables
-/// 19.6/19.7/19.10/19.12, asserted as function-pointer types so a
-/// missing or mistyped constructor fails to compile. Purely type-level —
-/// nothing here touches hardware.
-//
-// Cross-check data: manual §19 Tables 19.6/19.7/19.10/19.12 (the table
-// cross-checked entry-for-entry against the Arduino core's `pinmux.inc`).
+/// Asserts header `P`'s GPT output: channel `T`, output `out`, `PSEL`
+/// 00011b. Type-level facts read through `TypeId` (host only).
+fn assert_gtioc<P: Gtioc, T: 'static>(out: GptOutput)
+where
+    P::Timer: 'static,
+{
+    assert_eq!(
+        TypeId::of::<P::Timer>(),
+        TypeId::of::<T>(),
+        "{}: channel",
+        P::NAME
+    );
+    assert_eq!(P::OUTPUT, out, "{}: output", P::NAME);
+    assert_eq!(P::PSEL, 0b00011, "{}: PSEL", P::NAME);
+}
+
+/// The six classic Arduino PWM headers: (channel, output) from manual §19
+/// Tables 19.6/19.7/19.10/19.12, cross-checked entry-for-entry against the
+/// Arduino core's `pinmux.inc`. A wrong pin-table row fails here.
 #[cfg(feature = "wifi")]
 #[test]
-fn given_wifi_map_when_constructor_surface_checked_then_all_six_pins_match_the_manual() {
-    use crate::clock::Clocks;
-    use crate::gpio::{Input, Pin};
-    use crate::pwm::Pwm;
-
+fn given_wifi_map_when_pwm_headers_checked_then_all_six_match_the_manual() {
     // given: the WiFi pin map
-    // when: each header PWM pin's constructor is viewed as a signature
-    // then: engine, chip pin, and output match the manual's tables
-    // D3: P105 → GTIOC1A (Table 19.7)
-    let _: fn(
-        ra4m1::GPT321,
-        Pin<'1', 5, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT321, '1', 5, false> = Pwm::d3;
-    // D5: P107 → GTIOC0A (Table 19.6)
-    let _: fn(
-        ra4m1::GPT320,
-        Pin<'1', 7, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT320, '1', 7, false> = Pwm::d5;
-    // D6: P111 → GTIOC3A (Table 19.7)
-    let _: fn(
-        ra4m1::GPT163,
-        Pin<'1', 11, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT163, '1', 11, false> = Pwm::d6;
-    // D9: P303 → GTIOC7B (Table 19.10)
-    let _: fn(ra4m1::GPT167, Pin<'3', 3, Input>, u32, &Clocks) -> Pwm<ra4m1::GPT167, '3', 3, true> =
-        Pwm::d9;
-    // D10: P103 → GTIOC2A (Table 19.6)
-    let _: fn(
-        ra4m1::GPT162,
-        Pin<'1', 3, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT162, '1', 3, false> = Pwm::d10;
-    // D11: P411 → GTIOC6A (Table 19.12)
-    let _: fn(
-        ra4m1::GPT166,
-        Pin<'4', 11, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT166, '4', 11, false> = Pwm::d11;
+    // when / then: each classic PWM header's GPT output matches the manual
+    assert_gtioc::<D3, ra4m1::GPT321>(GptOutput::A); // P105 → GTIOC1A (Table 19.6)
+    assert_gtioc::<D5, ra4m1::GPT320>(GptOutput::A); // P107 → GTIOC0A (Table 19.6)
+    assert_gtioc::<D6, ra4m1::GPT163>(GptOutput::A); // P111 → GTIOC3A (Table 19.7)
+    assert_gtioc::<D9, ra4m1::GPT167>(GptOutput::B); // P303 → GTIOC7B (Table 19.10)
+    assert_gtioc::<D10, ra4m1::GPT162>(GptOutput::A); // P103 → GTIOC2A (Table 19.6)
+    assert_gtioc::<D11, ra4m1::GPT166>(GptOutput::A); // P411 → GTIOC6A (Table 19.12)
 }
 
 #[cfg(feature = "minima")]
 #[test]
-fn given_minima_map_when_constructor_surface_checked_then_all_six_pins_match_the_manual() {
-    use crate::clock::Clocks;
-    use crate::gpio::{Input, Pin};
-    use crate::pwm::Pwm;
-
+fn given_minima_map_when_pwm_headers_checked_then_all_six_match_the_manual() {
     // given: the Minima pin map
-    // when: each header PWM pin's constructor is viewed as a signature
-    // then: engine, chip pin, and output match the manual's tables
-    // D3: P104 → GTIOC1B (Table 19.6)
-    let _: fn(ra4m1::GPT321, Pin<'1', 4, Input>, u32, &Clocks) -> Pwm<ra4m1::GPT321, '1', 4, true> =
-        Pwm::d3;
-    // D5: P102 → GTIOC2B (Table 19.6)
-    let _: fn(ra4m1::GPT162, Pin<'1', 2, Input>, u32, &Clocks) -> Pwm<ra4m1::GPT162, '1', 2, true> =
-        Pwm::d5;
-    // D6: P106 → GTIOC0B (Table 19.6)
-    let _: fn(ra4m1::GPT320, Pin<'1', 6, Input>, u32, &Clocks) -> Pwm<ra4m1::GPT320, '1', 6, true> =
-        Pwm::d6;
-    // D9: P303 → GTIOC7B (Table 19.10)
-    let _: fn(ra4m1::GPT167, Pin<'3', 3, Input>, u32, &Clocks) -> Pwm<ra4m1::GPT167, '3', 3, true> =
-        Pwm::d9;
-    // D10: P112 → GTIOC3B (Table 19.7)
-    let _: fn(
-        ra4m1::GPT163,
-        Pin<'1', 12, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT163, '1', 12, true> = Pwm::d10;
-    // D11: P109 → GTIOC1A (Table 19.7)
-    let _: fn(
-        ra4m1::GPT321,
-        Pin<'1', 9, Input>,
-        u32,
-        &Clocks,
-    ) -> Pwm<ra4m1::GPT321, '1', 9, false> = Pwm::d11;
+    // when / then: each classic PWM header's GPT output matches the manual
+    assert_gtioc::<D3, ra4m1::GPT321>(GptOutput::B); // P104 → GTIOC1B (Table 19.6)
+    assert_gtioc::<D5, ra4m1::GPT162>(GptOutput::B); // P102 → GTIOC2B (Table 19.6)
+    assert_gtioc::<D6, ra4m1::GPT320>(GptOutput::B); // P106 → GTIOC0B (Table 19.6)
+    assert_gtioc::<D9, ra4m1::GPT167>(GptOutput::B); // P303 → GTIOC7B (Table 19.10)
+    assert_gtioc::<D10, ra4m1::GPT163>(GptOutput::B); // P112 → GTIOC3B (Table 19.7)
+    assert_gtioc::<D11, ra4m1::GPT321>(GptOutput::A); // P109 → GTIOC1A (Table 19.7)
 }

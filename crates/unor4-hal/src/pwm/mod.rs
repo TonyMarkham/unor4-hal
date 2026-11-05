@@ -1,5 +1,6 @@
-//! GPT PWM driver (Slice 7) — saw-wave PWM on the header PWM pins,
-//! D6 first.
+//! GPT PWM driver (Slice 7) — saw-wave PWM on any pin with a GPT output
+//! ([`Gtioc`](crate::gpio::Gtioc)): `Pwm::new(p.gpt163, p.pins.d6, …)` on
+//! the WiFi board.
 //!
 //! Hardware facts, Renesas RA4M1 hardware manual (R01UH0887EJ0100) unless
 //! the source is named otherwise:
@@ -40,7 +41,7 @@
 //!   compare = 0 produces 100%, not 0%. The dedicated mechanism is
 //!   `GTUDDTYC.OADTY` (§22.2.13, p.413; §22.3.6, p.465): `10b` forces
 //!   duty 0%, `11b` duty 100%, applied at a cycle end while counting.
-//!   [`Pwm::set_duty_cycle`] maps duty 0 to `OADTY = 10b` and the top
+//!   `Pwm`'s [`set_duty_cycle`](embedded_hal::pwm::SetDutyCycle::set_duty_cycle) maps duty 0 to `OADTY = 10b` and the top
 //!   duty to a compare value beyond `GTPR` (never matches → always
 //!   high); everything between goes through the compare register.
 //! - Glitch-free updates: `GTBER.CCRA[1:0] = 01b` single-buffers
@@ -60,13 +61,17 @@
 //!   still rewrites every register it relies on; it never trusts
 //!   inherited state — the bootloader leaves D13's GPT162 running as
 //!   PWM, per the Arduino core's `variant.cpp` note.)
-//! - Pin functions: every header PWM pin muxes to a `GTIOCnA/nB` output
-//!   at `PSEL[4:0] = 00011b` (§19 "I/O Ports": PORT1 Table 19.6/19.7,
-//!   PORT3 Table 19.10, PORT4 Table 19.12). D6 — WiFi = P111 →
-//!   `GTIOC3A` (GPT163), Minima = P106 → `GTIOC0B` (GPT320). The full
-//!   six-pin map, cross-checked entry-for-entry against the Arduino
-//!   core's `pinmux.inc` (behavioral reference only), is locked by the
-//!   golden test in `src/tests/pwm.rs`.
+//! - Pin functions: every pin with a GPT output muxes to its `GTIOCnA/nB`
+//!   at `PSEL[4:0] = 00011b` (§19 "I/O Ports": PORT1 Tables 19.6/19.7,
+//!   PORT3 Table 19.10, PORT4 Table 19.12). Which channel and output each
+//!   pin carries is its [`Gtioc`](crate::gpio::Gtioc) impl in the
+//!   [`pin_map`](crate::gpio::pin_map) table: 16 of the 20 headers (all but
+//!   A0–A3). D6 — WiFi = P111 → `GTIOC3A` (GPT163), Minima = P106 →
+//!   `GTIOC0B` (GPT320). The six classic Arduino PWM headers (D3, D5, D6,
+//!   D9, D10, D11) match the Arduino core's `pinmux.inc` (behavioral
+//!   reference only); `src/tests/pwm.rs` locks them. Hardware-proven: D6 on
+//!   WiFi (Slice 7); the other pins share the code path, not yet a bench
+//!   run.
 //!
 //! The public trait is `embedded-hal` 1.0's
 //! [`embedded_hal::pwm::SetDutyCycle`] (the
@@ -75,20 +80,22 @@
 //! ticks — [`calc_period`] enforces that, which also keeps every
 //! reachable period inside GPT16's 16-bit `GTPR`.
 
+mod bits16;
+mod bits32;
 mod calc_period;
 mod gpt_channel;
 mod period_error;
 mod period_params;
 mod period_result;
 mod pwm;
+mod width;
 
 // ---------------------------------------------------------------------------------------------- //
 
-pub use calc_period::calc_period;
-pub use gpt_channel::GptChannel;
-pub use period_error::PeriodError;
-pub use period_params::PeriodParams;
-pub use period_result::PeriodResult;
-pub use pwm::Pwm;
+pub use crate::pwm::{
+    bits16::Bits16, bits32::Bits32, calc_period::calc_period, gpt_channel::GptChannel,
+    period_error::PeriodError, period_params::PeriodParams, period_result::PeriodResult, pwm::Pwm,
+    width::Width,
+};
 
-pub(crate) use gpt_channel::{release_module_stop_gpt16, release_module_stop_gpt32};
+pub(crate) use crate::pwm::gpt_channel::{release_module_stop_gpt16, release_module_stop_gpt32};

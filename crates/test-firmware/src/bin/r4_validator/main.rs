@@ -19,9 +19,11 @@
 //! | D3 | D3 | Slice 2 input and button (R3 drives) and Slice 1 timing (R4 drives) |
 //! | D6 (GPT PWM) | D2 (INT0) | Slice 7 period/duty measurement |
 //! | A0 (ADC) | D5 (PWM) | Slice 8 stimulus |
+//! | D4 (GPT320 STEP) | D8 (ICP1) | Slice 11 step generator (`T`), timestamped by the R3's Timer1 input capture |
 //! | RESET | D4 | R3 reset pulses (`!` / `@`), independent of this image |
 //!
-//! R4 D2 is free/open; this image does not claim it.
+//! R4 D2 is free/open; this image does not claim it. On WiFi, R4 D4 is the
+//! step generator's STEP output: HIGH whenever it is stopped.
 //!
 //! D3 is input with pull-up on **both** boards except while one side
 //! drives it for a test that side requested, so the boards never fight.
@@ -39,7 +41,7 @@
 //! - SCI2 TX (P302) is released to GPIO input whenever nothing is being
 //!   sent. The PC's bytes and this board's TX share the R3's only RX
 //!   input; a driven idle line would block PC commands, `!` and `@`
-//!   included (README, Slice 9).
+//!   included (Validation.md, Slice 9).
 //!
 //! | Request | Slice | Reply |
 //! |---|---|---|
@@ -57,6 +59,25 @@
 //! | `K` | 10 | `K <boots> <ok>`: the boot log, read back now (`K ERR <name>` if recording failed) |
 //! | `F` | 10 | `F OK <blank erase ms> <program ms> <erase ms> <mismatches>` or `F FAIL <step> <error>`: block 6 self-test |
 //! | `S` | — | `S <usb state> <taken> <up s> <ov> <er>` |
+//! | `L<n>` | 11 (step 1) | `L <n> <count> <after>`: `n` ELC software events routed to GPT166's count-up input (`count` = `n`), then 10 more with the route removed (`after` = `count`) |
+//! | `N` | 11 (step 3) | `N <pulses>`: the step generator's hardware pulse count (GPT321), wrapping |
+//! | `Y<rate>` | 11 (step 4) | `Y <checked> <mismatches> <skipped> <dmin> <dmax> <span> [<phase> <diff+10>]`: 60 ticks at `rate`, each latched count against the previous tick's prediction; the first mismatch's details if any |
+//! | `V<rate>` | 11 (step 4) | as `Y`, over 2 500 ticks (5 s) |
+//! | `X` | 11 (step 5a) | `X <min> <max> <samples>`: the tick DTC's write latency in PCLKD counts over 500 ticks at 1 000/s |
+//! | `W<mode>` | 11 (step 5b) | `W <ticks> <applied> <count misses> <phase misses> <queue errors> <reversals> <in flight> <old first> <violations> <dir min> <dir max> [M]<position change>`: reversals at every tick (mode 1), a ramp through zero (2), from stopped (3); every reversal checked against the DIR rule |
+//! | `H<cycles>` | 11 (stop) | `H <cycles> <cut> <end> <between> <cut max> <between max> <period> <pulses>`: start/stop cycles at 55 733/s stopped at random phases; where each stop froze the counter |
+//! | `J` | 11 (wake) | `J <ticks> <applied> <count misses> <phase misses> <queue errors> <skipped> <wakes> <wake max> <done max>`: 2 500 ticks of random fast rates with the CPU asleep in `WFI`, woken by the tick |
+//! | `O` | 11 (step 5c) | `O <ticks> <applied> <count misses> <phase misses> <queue errors> <idle stops> <starts>`: ramp, rate 0, held ticks, restart from idle, 1 s idle stop, start from stopped, trip stop |
+//! | `Q<mode>` | 11 (step 5a) | `Q <ticks> <applied> <count misses> <phase misses> <queue errors> <span>`: a rate queued after every tick (mode 1: 44 600/960 alternating, the R3 times the markers; mode 2: ±2 421/s ramp), every prediction checked |
+//! | `T<rate>` | 11 (step 2) | `T <period counts>`: D4 stopped, then started at `rate` pulses/s (5 µs low, ≥ 2.5 µs high); `T0` stops (`T 0`); `T ERR <code>`; `T NA` on Minima |
+//! | `w` | 2 (wake) | `w <activated> <wakes> <active at wake>`: D3 as a switch with `with_edge` and `with_wake`, asleep in `WFI` until the R3 presses it |
+//! | `e` | 2 (external pull-up) | `e <internal pull-up> <active at idle> <activated> <wakes> <active at wake> <released>`: the same switch with `Pull::External`, the R3's pin pull-up as the pull-up |
+//! | `c` | 11 (count stop) | `c <attempts> <stops won> <cancels won> <violations> <first violation> <errors> <last error> <pulses>`: `cancel_stop_at` at swept moments around the count match |
+//! | `s<mode>` | 11 (long sleep) | `s <skipped> <polls> <errors> <phase misses> <count misses> <checked> <pulses> <position>`: a sleep of 100 ms / 500 ms / 3 s at a steady rate, then one poll and a `queue` |
+//! | `b` | 11 (boot) | `b <ran> <starts> <errors> <phase misses> <count misses> <checked> <freed> <pins input> <timer stopped> <count> <ena counts> <lead counts>`: the boot-time setup (STEP D3 on GPT321 A, DIR D5 with a 200 µs set-up, ENA D2 with a 5 µs lead), four direction changes through `queue`, `free` while running |
+//! | `t<mode>` | 12 (wake) | the wake timer on GPT167 (`wake_check`): `t1` wait lengths, `t2` behaviour, `t3` two waits marked on D3 for the R3 |
+//! | `m` | — | `m <ms 2 400 000 x4> <ms 960 000 x10> <ms 240 000 x40> <ms 1 200 x8 000>`: `cortex_m::asm::delay` timed on the SysTick clock |
+//! | `Z<zone>` | 11 (step 2) | `Z <zone> <phase>`: the running generator stopped inside a chosen phase — 1 mid-pulse, 2 just after a pulse, 3 just before the next; `Z ERR` |
 //!
 //! # Slice 10
 //!
@@ -85,17 +106,32 @@
 #![no_main]
 
 mod body;
+#[cfg(feature = "wifi")]
+mod boot_free;
+#[cfg(feature = "wifi")]
+mod cancel_race;
 mod clock;
+mod delay_probe;
+mod elc_count;
 mod flash;
 mod frame;
 mod link;
+#[cfg(feature = "wifi")]
+mod long_sleep;
 mod requests;
+#[cfg(feature = "wifi")]
+mod step_run;
+#[cfg(feature = "wifi")]
+mod switch_wake;
+#[cfg(feature = "wifi")]
+mod wake_check;
 
 // ---------------------------------------------------------------------------------------------- //
 
 use crate::{
     body::Body,
     clock::Clock,
+    elc_count::elc_count,
     flash::{BootLog, self_test},
     frame::FrameBuf,
     link::{LINK_BAUD, link_tx, release_link_when_idle, reply},
@@ -114,6 +150,9 @@ use unor4_hal::{
     uart::{Uart, UartIrq},
     usb::{CdcAcm, UsbPort, Usbfs},
 };
+
+#[cfg(feature = "wifi")]
+use unor4_hal::{step::StepGenerator, wake::WakeTimer};
 
 use embedded_hal::pwm::SetDutyCycle as _;
 use panic_halt as _;
@@ -137,11 +176,39 @@ const PWM_HZ: u32 = 1_000;
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
 
+    // Slice 11: the step generator from its checked setup (`step_run::SETUP`:
+    // STEP D4 on GPT320, DIR D5, 16-bit GPT162 counting, GPT164/GPT165
+    // ticking), stopped, the pin HIGH. It claims exactly those parts from
+    // `p` and gives the rest back, so it comes before the drivers that take
+    // fields out of `p` directly. At startup all 32 ICU slots are free, so
+    // its one run-time error (no free slot) cannot happen here.
+    //
+    // Before it, the boot-time step checks (`boot_free`): a second setup
+    // built, run, freed and replaced while `p` is still whole (`free` and
+    // `build` take all of it). The R3 resets this board to watch them (`b`).
+    #[cfg(feature = "wifi")]
+    let (boot_free, p) = boot_free::BootFree::run(p);
+    #[cfg(feature = "wifi")]
+    let (mut stepper, p) = match StepGenerator::new(step_run::SETUP)
+        .with_peripherals(p)
+        .build()
+    {
+        Ok((stepper, rest)) => (Some(stepper), rest),
+        Err(_) => panic!("no free ICU slot for the step generator"),
+    };
+    // The wake timer (`wake_check::WAKE`: GPT167, ELC input E), also from
+    // the whole `p`, before any field is taken.
+    #[cfg(feature = "wifi")]
+    let (mut wake, p) = match WakeTimer::new(wake_check::WAKE).with_peripherals(p).build() {
+        Ok(built) => built,
+        Err(_) => panic!("no free ICU slot for the wake timer"),
+    };
+
     // Slice 4: the polled driver on the bridge monitor (SCI9, 115200).
     #[cfg(feature = "wifi")]
-    let mut monitor = Uart::sci9(p.sci9, p.sci9_tx, p.sci9_rx, 115_200, &p.clocks);
+    let mut monitor = Uart::new(p.sci9, p.sci9_tx, p.sci9_rx, 115_200, &p.clocks);
     #[cfg(feature = "minima")]
-    let mut monitor = Uart::sci9(p.sci9, p.pins.d11, p.pins.d12, 115_200, &p.clocks);
+    let mut monitor = Uart::new(p.sci9, p.pins.d11, p.pins.d12, 115_200, &p.clocks);
     monitor.write_bytes(b"unor4-hal validator 1 - slices 1-10, R3 link on SCI2 9600\r\n");
 
     // Slice 10: claim the data flash and log this boot before any
@@ -153,22 +220,33 @@ fn main() -> ! {
     monitor.write_bytes(b"\r\n");
 
     // Slices 3/5: the link. Slice 6: the AT channel. Then CPU interrupts.
-    LINK.sci2(p.sci2, p.pins.d1, p.pins.d0, LINK_BAUD, &p.clocks);
+    LINK.attach(p.sci2, p.pins.d1, p.pins.d0, LINK_BAUD, &p.clocks);
     link_tx(false);
     #[cfg(feature = "wifi")]
-    AT.sci1(p.sci1, p.sci1_tx, p.sci1_rx, 115_200, &p.clocks);
+    AT.attach(p.sci1, p.sci1_tx, p.sci1_rx, 115_200, &p.clocks);
     unsafe { intc::enable_interrupts() };
 
     // Slices 1/2: heartbeat LED and the shared D3 line (input, button,
     // and the Slice 1 square wave).
     let mut led = p.pins.d13.into_output();
     let mut d3 = Some(p.pins.d3.into_input_pullup());
+    // Slice 11 step 1: the ELC (started by `Peripherals::take`), and GPT166
+    // as its software-event counter.
+    let mut elc = p.elc;
+    let elc_a = p.elc_a;
+    let event_gpt = p.gpt166;
+    // The wake timer's reference: GPT321 free-running at PCLKD (the main
+    // step setup leaves it free; the boot-time setup gave it back).
+    #[cfg(feature = "wifi")]
+    let reference = p.gpt321;
+    #[cfg(feature = "wifi")]
+    wake_check::start_reference(&reference);
 
     // Slice 7: D6 PWM. Slice 8: A0 at 12 bits.
     #[cfg(feature = "wifi")]
-    let mut pwm = Pwm::d6(p.gpt163, p.pins.d6, PWM_HZ, &p.clocks);
+    let mut pwm = Pwm::new(p.gpt163, p.pins.d6, PWM_HZ, &p.clocks);
     #[cfg(feature = "minima")]
-    let mut pwm = Pwm::d6(p.gpt320, p.pins.d6, PWM_HZ, &p.clocks);
+    let mut pwm = Pwm::new(p.gpt320, p.pins.d6, PWM_HZ, &p.clocks);
     let pwm_max = pwm.max_duty_cycle();
     let mut adc = Adc::new(p.adc140, Resolution::Bits12);
     let mut a0 = p.pins.a0.into_analog();
@@ -282,6 +360,51 @@ fn main() -> ! {
                 }
                 None => Body::new(b"U 0"),
             },
+            b'L' => elc_count(req, &mut elc, &elc_a, &event_gpt),
+            #[cfg(feature = "wifi")]
+            b'T' => step_run::step_request(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'Z' => step_run::stop_in_zone(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'N' => step_run::pulse_count(&stepper),
+            #[cfg(feature = "wifi")]
+            b'Y' => step_run::tick_run(req, &mut stepper, step_run::TICK_RUN_TICKS),
+            #[cfg(feature = "wifi")]
+            b'V' => step_run::tick_run(req, &mut stepper, step_run::TICK_STRESS_TICKS),
+            #[cfg(feature = "wifi")]
+            b'X' => step_run::dtc_probe(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'Q' => step_run::queue_run(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'O' => step_run::scenario_run(&mut stepper),
+            #[cfg(feature = "wifi")]
+            b'W' => step_run::reverse_run(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'H' => step_run::stop_burst(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'J' => step_run::wake_run(&mut stepper),
+            #[cfg(feature = "wifi")]
+            b'k' => step_run::skip_run(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'd' => step_run::dir_lead_run(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'n' => step_run::count_stop_run(req, &mut stepper),
+            #[cfg(feature = "wifi")]
+            b'w' => switch_wake::switch_wake(&mut d3),
+            #[cfg(feature = "wifi")]
+            b'e' => switch_wake::switch_external(&mut d3, &mut clock),
+            #[cfg(feature = "wifi")]
+            b'c' => cancel_race::cancel_race(&mut stepper),
+            #[cfg(feature = "wifi")]
+            b's' => long_sleep::long_sleep(req, &mut stepper, &mut clock),
+            #[cfg(feature = "wifi")]
+            b'b' => boot_free.reply(),
+            #[cfg(feature = "wifi")]
+            b't' => wake_check::wake_request(req, &mut wake, &reference, &mut d3),
+            #[cfg(feature = "minima")]
+            b'T' | b'Z' | b'N' | b'Y' | b'V' | b'X' | b'Q' | b'O' | b'W' | b'H' | b'J' | b'k'
+            | b'd' | b'n' | b'w' | b'e' | b'c' | b's' | b'b' | b't' => Body::new(b"T NA"),
+            b'm' => delay_probe::delay_probe(&mut clock),
             b'K' => boot_log.reply(flash.as_ref().ok()),
             b'F' => self_test(flash.as_mut().ok(), &mut clock),
             b'S' => {

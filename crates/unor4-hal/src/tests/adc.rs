@@ -4,25 +4,48 @@
 //! the scan-time calculator
 //! (manual §35.3.6 Table 35.10's arithmetic).
 
-use crate::adc::{Channel, Resolution, ScanTimeParams, calc_scan_time};
-use crate::gpio::{Analog, Pin};
+use crate::{
+    adc::{Resolution, ScanTimeParams, calc_scan_time},
+    gpio::{
+        AdcPin,
+        pin_map::{A0, A1, A2, A3, A4, A5},
+    },
+};
 
 const PCLKB_24MHZ: u32 = 24_000_000;
 const ADCLK_48MHZ: u32 = 48_000_000;
 
 #[test]
 fn given_header_analog_pins_when_channel_read_then_matches_the_manual_map() {
-    // given: the six header analog pins, in analog state
+    // given: the six header analog pins (the same chip pins on both boards)
     // when: their AN channel constants are read
+    let channels = (
+        A0::CHANNEL,
+        A1::CHANNEL,
+        A2::CHANNEL,
+        A3::CHANNEL,
+        A4::CHANNEL,
+        A5::CHANNEL,
+    );
+
     // then: every entry equals the verified pin-function map — A0's
     // channel is AN009 (P014 also carries DA0), A1–A3 are AN000–AN002,
     // and A4/A5 are the PORT1 high-numbered channels AN021/AN022.
-    assert_eq!(<Pin<'0', 14, Analog> as Channel>::AN, 9);
-    assert_eq!(<Pin<'0', 0, Analog> as Channel>::AN, 0);
-    assert_eq!(<Pin<'0', 1, Analog> as Channel>::AN, 1);
-    assert_eq!(<Pin<'0', 2, Analog> as Channel>::AN, 2);
-    assert_eq!(<Pin<'1', 1, Analog> as Channel>::AN, 21);
-    assert_eq!(<Pin<'1', 0, Analog> as Channel>::AN, 22);
+    assert_eq!(channels, (9, 0, 1, 2, 21, 22));
+}
+
+#[cfg(feature = "wifi")]
+#[test]
+fn given_wifi_d10_d13_when_channel_read_then_an019_an020() {
+    // given: WiFi D10 = P103 and D13 = P102 (manual Table 19.6 `ASEL` row)
+    // when: their AN channel constants are read
+    let channels = (
+        <crate::gpio::pin_map::D10 as AdcPin>::CHANNEL,
+        <crate::gpio::pin_map::D13 as AdcPin>::CHANNEL,
+    );
+
+    // then: AN019 and AN020
+    assert_eq!(channels, (19, 20));
 }
 
 #[test]

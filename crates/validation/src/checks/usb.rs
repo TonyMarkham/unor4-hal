@@ -19,6 +19,12 @@ const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 /// The echo payload sizes, as proven on the bench.
 const ECHO_LENGTHS: &[usize] = &[1, 7, 64, 65, 128, 255, 512, 1024, 4096];
 
+/// How long the native port may refuse to open after it appears. On the
+/// bench (2026-11-04) Windows listed COM7 and refused the open at once
+/// ("The system cannot find the file specified."); opened by hand 6 s
+/// after the take-over, it worked.
+const NATIVE_OPEN_WAIT: Duration = Duration::from_secs(10);
+
 /// What may trail an echo: an interrupted `tick N` line.
 const TRAILING_TICK: &str = r"^(t(i(c(k( \d*\r?)?)?)?)?)?$";
 
@@ -94,13 +100,17 @@ fn knock(native: &str, r3: &mut R3, report: &mut Report) {
 /// echoes of several sizes. Returns a "PASS …" summary text, or the
 /// failure reason.
 fn test_native(name: &str) -> String {
-    let Ok(mut port) = serialport::new(name, 115_200)
-        .timeout(Duration::from_millis(10))
-        .dtr_on_open(true)
-        .open()
-    else {
-        return format!("could not open native port {name}");
+    let opening = Instant::now();
+    let mut port = match open_native(name) {
+        Ok(port) => port,
+        Err(error) => {
+            return format!(
+                "could not open native port {name} within {} s: {error}",
+                NATIVE_OPEN_WAIT.as_secs()
+            );
+        }
     };
+    let opened_ms = opening.elapsed().as_millis();
     let _ = port.clear(ClearBuffer::Input);
 
     let mut tail: Vec<u8> = Vec::new();
@@ -176,8 +186,26 @@ fn test_native(name: &str) -> String {
         total += length;
     }
     format!(
-        "PASS {count} consecutive ticks (max gap {gap:.3} s), 9 exact echoes, {total} bytes each direction"
+        "PASS opened after {opened_ms} ms, {count} consecutive ticks (max gap {gap:.3} s), 9 exact echoes, {total} bytes each direction"
     )
+}
+
+/// Opens the native port at 115 200 baud, DTR asserted, retrying until
+/// [`NATIVE_OPEN_WAIT`] has passed: Windows lists the port before it can
+/// be opened.
+fn open_native(name: &str) -> Result<Box<dyn SerialPort>, serialport::Error> {
+    let deadline = Instant::now() + NATIVE_OPEN_WAIT;
+    loop {
+        match serialport::new(name, 115_200)
+            .timeout(Duration::from_millis(10))
+            .dtr_on_open(true)
+            .open()
+        {
+            Ok(port) => return Ok(port),
+            Err(error) if Instant::now() >= deadline => return Err(error),
+            Err(_) => std::thread::sleep(Duration::from_millis(200)),
+        }
+    }
 }
 
 /// Reads whatever is available right now from the port into `out`.

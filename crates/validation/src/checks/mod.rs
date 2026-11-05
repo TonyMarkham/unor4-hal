@@ -8,4 +8,7 @@ pub mod slices;
 pub mod usb;
 
 #[cfg(test)]
-pub(crate) use crate::checks::{boot_event::BootEvent, slices::requested};
+pub(crate) use crate::checks::{
+    boot_event::BootEvent,
+    slices::{LINE_PATTERNS, requested},
+};

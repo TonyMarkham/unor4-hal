@@ -5,5 +5,4 @@ mod parser;
 
 // ---------------------------------------------------------------------------------------------- //
 
-pub use crate::cli::command::Command;
-pub use crate::cli::parser::Cli;
+pub use crate::cli::{command::Command, parser::Cli};

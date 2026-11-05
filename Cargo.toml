@@ -1,40 +1,37 @@
 [workspace]
 members            = [
-    "crates/unor4-hal",
-    "crates/test-firmware",
-    "crates/validation",
+                       "crates/unor4-hal",
+                       "crates/test-firmware",
+                       "crates/validation",
 ]
-default-members    = ["crates/unor4-hal"]
+default-members    = [ "crates/unor4-hal" ]
 resolver           = "3"
 
 [workspace.package]
-version            = "0.1.2"
+version            = "0.2.0"
 edition            = "2024"
-rust-version       = "1.85"
+rust-version       = "1.88"
 license            = "MIT"
 
 [workspace.dependencies]
-cortex-m           = { version = "0.7.9" }
-cortex-m-rt        = { version = "0.7.7", features = ["set-vtor"] }
+cortex-m           = { version = "0.7.10" }
+cortex-m-rt        = {
+                       version = "0.7.7",
+                       features = ["set-vtor"]
+}
 critical-section   = { version = "1.2.0" }
 embedded-hal       = { version = "1.0.0" }
 embedded-hal-nb    = { version = "1.0.0" }
 embedded-io        = { version = "0.7.1" }
 nb                 = { version = "1.1.0" }
-
 panic-halt         = { version = "1.0.0" }
 ra4m1              = { version = "0.2.0" }
-
-# `usb` feature only: usb-device 0.3 bus-hal + the CDC-ACM class crate.
-# Both MIT (license audit 2026-10-20).
 usb-device         = { version = "0.3.2" }
 usbd-serial        = { version = "0.2.2" }
-
-# Host-side validation tool only (crates/validation, publish = false).
-# clap 4.6.7 MIT OR Apache-2.0; regex 1.13.1 MIT OR Apache-2.0;
-# serialport 4.10.1 MPL-2.0 — owner-approved audit exception for the
-# unpublished host tool (AGENTS.md, Current grants, 2026-10-20).
-clap               = { version = "4.6.7", features = ["derive"] }
+clap               = {
+                       version = "4.6.7",
+                       features = ["derive"]
+}
 regex              = { version = "1.13.1" }
 serialport         = { version = "4.10.1" }
 

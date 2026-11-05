@@ -2,6 +2,12 @@
 
 use crate::intc::Event;
 
+/// `PRCR` key + PRC1 write-enable (module-stop registers are PRC1-
+/// protected, like the clock registers of Slice 1).
+const PRCR_UNLOCK_PRC1: u16 = 0xA502;
+/// `PRCR` relock (permission bits cleared).
+const PRCR_LOCK: u16 = 0xA500;
+
 mod private {
     /// Sealed supertrait: nothing outside this module can implement it,
     /// so the set of [`SciChannel`] types is closed — the chip's engine
@@ -23,8 +29,8 @@ mod private {
 /// registers the driver never accesses (`sci0`: FCR/FDR/LSR at 0x14–0x19,
 /// `sci2`: TDRHL/RDRHL at 0x0E–0x13), and every touched offset is ≤ 0x1C
 /// while the blocks sit 0x20 apart, so no access can reach a neighboring
-/// engine's registers. That identity is what lets [`Uart`](super::Uart)
-/// and [`UartIrq`](super::UartIrq) be one generic driver over a
+/// engine's registers. That identity is what lets [`Uart`](crate::uart::Uart)
+/// and `UartIrq` (feature `uart-irq`) be one generic driver over a
 /// `sci2`-typed view ([`SciChannel::block`]).
 pub trait SciChannel: private::Sealed {
     /// Raw pointer to the engine's register block, typed as the
@@ -55,6 +61,11 @@ pub trait SciChannel: private::Sealed {
     /// (0 = SCI2, 1 = SCI9, 2 = SCI1). Arbitrary but stable per engine.
     const CHANNEL_ID: u8;
 
+    /// Takes the engine out of module stop (its `MSTPCRB` bit; manual
+    /// §10.2.3). The MSTP registers are PRC1-protected, so the write window
+    /// unlocks and relocks `PRCR`.
+    fn release_module_stop();
+
     /// A shared view of the engine's registers.
     ///
     /// Safe to call on a claimed engine: the peripheral token is
@@ -72,6 +83,17 @@ impl private::Sealed for ra4m1::SCI1 {}
 impl private::Sealed for ra4m1::SCI2 {}
 impl private::Sealed for ra4m1::SCI9 {}
 
+/// Clears one `MSTPCRB` bit under the PRC1 unlock. Addresses from the SVD:
+/// `MSTP` block at `0x4004_7000`, `MSTPCRB` first at offset `0x00`.
+fn release_mstpcrb(bit: u32) {
+    let system = unsafe { &*ra4m1::SYSTEM::PTR };
+    let mstp = unsafe { &*ra4m1::MSTP::PTR };
+    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
+    mstp.mstpcrb
+        .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << bit)) });
+    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
+}
+
 impl SciChannel for ra4m1::SCI1 {
     /// SCI1's register block at `0x4007_0020`, typed as
     /// `sci2::RegisterBlock`. The PAC hands the address out as
@@ -85,6 +107,13 @@ impl SciChannel for ra4m1::SCI1 {
     const EVENT_ERI: Event = Event::Sci1Eri;
     const EVENT_TEI: Event = Event::Sci1Tei;
     const CHANNEL_ID: u8 = 2;
+
+    /// `MSTPCRB.MSTPB30`: manual §10.2.3 names bit 30 "Serial
+    /// Communication Interface 1 Module Stop"; the SVD field `mstpb30`
+    /// matches.
+    fn release_module_stop() {
+        release_mstpcrb(30);
+    }
 }
 
 impl SciChannel for ra4m1::SCI2 {
@@ -94,6 +123,12 @@ impl SciChannel for ra4m1::SCI2 {
     const EVENT_ERI: Event = Event::Sci2Eri;
     const EVENT_TEI: Event = Event::Sci2Tei;
     const CHANNEL_ID: u8 = 0;
+
+    /// `MSTPCRB.MSTPB29` (SVD "Serial Communication Interface 2 Module
+    /// Stop").
+    fn release_module_stop() {
+        release_mstpcrb(29);
+    }
 }
 
 impl SciChannel for ra4m1::SCI9 {
@@ -103,4 +138,10 @@ impl SciChannel for ra4m1::SCI9 {
     const EVENT_ERI: Event = Event::Sci9Eri;
     const EVENT_TEI: Event = Event::Sci9Tei;
     const CHANNEL_ID: u8 = 1;
+
+    /// `MSTPCRB.MSTPB22` (SVD "Serial Communication Interface 9 Module
+    /// Stop").
+    fn release_module_stop() {
+        release_mstpcrb(22);
+    }
 }

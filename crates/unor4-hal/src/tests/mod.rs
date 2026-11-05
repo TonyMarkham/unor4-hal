@@ -4,14 +4,23 @@
 //! --features uart-irq`).
 
 mod adc;
+mod builders;
 mod clock;
+mod count_stop;
 mod delay;
 mod dflash;
+mod elc;
+mod ena;
 mod pins;
 mod pwm;
+mod recovery;
+mod start;
+mod step;
+mod switch;
 mod uart;
 #[cfg(feature = "usb")]
 mod usb;
+mod wake;
 
 mod intc;
 #[cfg(feature = "uart-irq")]

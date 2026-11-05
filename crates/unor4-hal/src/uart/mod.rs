@@ -1,6 +1,8 @@
 //! SCI UART driver — polling mode, 8 data bits, no parity, 1 stop bit
 //! (Slice 3: SCI2 on the header's D0/D1; Slice 4: SCI9 on the internal
 //! monitor line P109/P110; Slice 6: SCI1 on the WiFi AT line P501/P502).
+//! Any TX/RX pair the pin table gives the channel is accepted:
+//! [`Uart::new`] bounds on [`SciPin`](crate::gpio::SciPin).
 //!
 //! Hardware facts, Renesas RA4M1 hardware manual (R01UH0888) unless the
 //! source is named otherwise:
@@ -39,29 +41,27 @@
 //!   out: FSP restricts `ABCSE = 1` on some channels and the RA4M1's
 //!   restriction list is unverified — nothing in the board's baud range
 //!   needs them at 24 MHz.
-//! - Pin functions: P302 = TXD2, P301 = RXD2 at `PSEL = 0x04`; P109 =
-//!   TXD9, P110 = RXD9 at `PSEL = 0x05`; P501 = TXD1, P502 = RXD1 at
-//!   `PSEL = 0x05` (manual §19, Table 19.13 "Register settings for
-//!   input/output pin function (PORT5)": `TXD1/MOSI1/SDA1` and
-//!   `RXD1/MISO1/SCL1` at `PSEL[4:0] = 00101b`). The RA4M1 assigns one
-//!   `PSEL`
-//!   per function *class*, not per pin: even channels (SCI0/2/4/6/8)
-//!   share `0x04`, odd channels (SCI1/3/5/7/9) share `0x05` — FSP's
-//!   `r_ioport_api.h` encodes exactly these two values
-//!   (`IOPORT_PERIPHERAL_SCI0_2_4_6_8` / `IOPORT_PERIPHERAL_SCI1_3_5_7_9`)
-//!   as the `PFS.PSEL` payload. Cross-checked against the Arduino core,
-//!   which routes every `pinmux.inc` entry marked `SCI_ODD_CFG` — P109,
-//!   P110, P501 and P502 included — to the odd-class constant
-//!   (`cores/arduino/Serial.cpp`). Board wiring (P109/P110 through the
-//!   level translator to the ESP32-S3; P501/P502 board-internal to the
-//!   ESP32-S3): ABX00087 block diagram. The even-class value is
-//!   Slice-3 hardware-proven; the odd-class value is proven by Slice 4's
-//!   monitor run.
+//! - Pin functions: each pin's SCI signals and their `PSEL` are its
+//!   [`SciPin`](crate::gpio::SciPin) impls in the
+//!   [`pin_map`](crate::gpio::pin_map) table (manual §19 Tables
+//!   19.6–19.13). The proven pairs: P302 = TXD2, P301 = RXD2 at
+//!   `PSEL = 00100b` (Slice 3); P109 = TXD9, P110 = RXD9 at `00101b`
+//!   (Slice 4); P501 = TXD1, P502 = RXD1 at `00101b` (Table 19.13; Slice
+//!   6). Mostly the even channels (SCI0/2/…) sit at `00100b` and the odd
+//!   ones (SCI1/9/…) at `00101b` — FSP's `IOPORT_PERIPHERAL_SCI0_2_4_6_8`
+//!   / `_SCI1_3_5_7_9` and the Arduino core's `SCI_ODD_CFG` encode that
+//!   rule — but the manual's tables have exceptions: Table 19.6 lists
+//!   P102's `TXD2` under `00101b`, and Table 19.7 lists `SCK1` under
+//!   `00100b` on P109 but `00101b` on P112. So `PSEL` is a per-pin
+//!   property, and TX and RX may differ. The exceptions are not yet proven
+//!   on the board. Board wiring (P109/P110 through the level translator to
+//!   the ESP32-S3; P501/P502 board-internal to the ESP32-S3): ABX00087
+//!   block diagram.
 //!
 //! No `embedded-hal` serial traits on the polling driver yet: eh 1.0's
 //! serial traits live in the separate `embedded-hal-nb` crate, and the
 //! polling `Uart` keeps the shape the course already teaches. The
-//! interrupt-mode driver ([`UartIrq`], feature `uart-irq`) carries the
+//! interrupt-mode driver (`UartIrq`, feature `uart-irq`) carries the
 //! `embedded-hal-nb` serial, `embedded-io`, and `core::fmt::Write`
 //! impls from Slice 5 on.
 
@@ -81,25 +81,22 @@ mod uart_irq;
 
 // ---------------------------------------------------------------------------------------------- //
 
-pub use baud_error::BaudError;
-pub use baud_params::BaudParams;
-pub use baud_result::BaudResult;
-pub use calc_baud::{MAX_ERROR_X1000, calc_baud};
-pub use read_error::ReadError;
-pub use read_result::ReadResult;
-pub use sci_channel::SciChannel;
-pub use uart::Uart;
-
-#[cfg(feature = "uart-irq")]
-pub(crate) use ring::Ring;
-#[cfg(feature = "uart-irq")]
-pub(crate) use uart::{
-    PSEL_SCI1, PSEL_SCI2, PSEL_SCI9, init_sci, release_module_stop_sci1, release_module_stop_sci2,
-    release_module_stop_sci9,
+pub use crate::uart::{
+    baud_error::BaudError,
+    baud_params::BaudParams,
+    baud_result::BaudResult,
+    calc_baud::{MAX_ERROR_X1000, calc_baud},
+    read_error::ReadError,
+    read_result::ReadResult,
+    sci_channel::SciChannel,
+    uart::Uart,
 };
 
 #[cfg(feature = "uart-irq")]
-pub use uart_irq::UartIrq;
+pub(crate) use crate::uart::{ring::Ring, uart::init_sci};
+
+#[cfg(feature = "uart-irq")]
+pub use crate::uart::uart_irq::UartIrq;
 
 #[cfg(all(test, feature = "uart-irq"))]
-pub(crate) use uart_irq::can_prime_tx;
+pub(crate) use crate::uart::uart_irq::can_prime_tx;

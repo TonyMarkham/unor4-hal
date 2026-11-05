@@ -34,6 +34,7 @@ pub mod bus;
 pub mod cdc;
 pub mod error;
 pub mod port;
+mod take_usb_port;
 pub mod wake;
 
 // ---------------------------------------------------------------------------------------------- //
@@ -42,17 +43,5 @@ pub use bus::Usbfs;
 pub use cdc::CdcAcm;
 pub use error::Error;
 pub use port::UsbPort;
+pub use take_usb_port::take_usb_port;
 pub use wake::UsbWake;
-
-// ---------------------------------------------------------------------------------------------- //
-
-/// Explicitly routes the USB connector to the RA4M1.
-///
-/// WiFi: immediately disconnects the ESP32-S3 bridge, its monitor, and
-/// its upload path. Keep the returned [`UsbPort`] and release it before
-/// handing the connector back. This does not change SJ1; consult the
-/// board documentation for that solder jumper. Minima has no mux. No
-/// capture delay is chosen by the HAL.
-pub fn take_usb_port(pin: crate::gpio::Pin<'4', 8, crate::gpio::Input>) -> UsbPort {
-    UsbPort::take(pin)
-}

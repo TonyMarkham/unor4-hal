@@ -1,8 +1,8 @@
 //! The ADC140 driver: one claimed unit, single-shot blocking reads.
 
 use crate::{
-    adc::{Channel, ReadError, ReadResult, Resolution},
-    gpio::{Analog, Pin},
+    adc::{ReadError, ReadResult, Resolution},
+    gpio::{AdcPin, Analog, Pin},
 };
 
 /// `PRCR` key + PRC1 write-enable (module-stop registers are PRC1-
@@ -105,8 +105,8 @@ impl Adc {
     ///
     /// The pin must be in its analog state
     /// ([`Pin::into_analog`](crate::gpio::Pin::into_analog)); its
-    /// position selects the channel — the six header pins A0–A5 are the
-    /// only implementors of [`Channel`], so no other pin type-checks.
+    /// [`AdcPin::CHANNEL`] selects the channel. A pin without an ADC channel
+    /// does not type-check: `` `D2` has no ADC channel ``.
     ///
     /// Sequence (manual §35.3.2.1):
     ///
@@ -117,18 +117,12 @@ impl Adc {
     ///    description);
     /// 3. `ADST` stays 1 during the conversion and **the hardware
     ///    clears it when the scan completes** (§35.3.2.1 step 4) — the
-    ///    poll waits for that self-clear, bounded by
-    ///    [`ADST_POLL_LIMIT`];
+    ///    poll waits for that self-clear, bounded by `ADST_POLL_LIMIT`
+    ///    (100 000 polls);
     /// 4. the channel's `ADDRy` is read, right-justified, masked to the
     ///    configured resolution.
-    pub fn read<const PORT: char, const PIN: u8>(
-        &mut self,
-        _pin: &mut Pin<PORT, PIN, Analog>,
-    ) -> ReadResult<u16>
-    where
-        Pin<PORT, PIN, Analog>: Channel,
-    {
-        let an = <Pin<PORT, PIN, Analog> as Channel>::AN;
+    pub fn read<P: AdcPin>(&mut self, _pin: &mut Pin<P, Analog>) -> ReadResult<u16> {
+        let an = P::CHANNEL;
         let adc = &self._adc;
 
         // 1. Select exactly this channel for group A (single scan).
@@ -153,10 +147,15 @@ impl Adc {
         }
 
         // 4. The result. `addr` indexes AN000–AN014; AN016+ sit in
-        //    individually-named registers. The `_` arm is unreachable:
-        //    `Channel` is sealed to AN ∈ {0, 1, 2, 9, 21, 22}.
+        //    individually-named registers. The `_` arm is unreachable: the
+        //    pin table's `adc` channels are {0, 1, 2, 9, 17, 18, 19, 20, 21,
+        //    22} (17/18 on the board-internal P501/P502).
         let raw = match an {
             0..=14 => adc.addr[an as usize].read().addr().bits(),
+            17 => adc.addr17.read().addr().bits(),
+            18 => adc.addr18.read().addr().bits(),
+            19 => adc.addr19.read().addr().bits(),
+            20 => adc.addr20.read().addr().bits(),
             21 => adc.addr21.read().addr().bits(),
             22 => adc.addr22.read().addr().bits(),
             _ => 0,

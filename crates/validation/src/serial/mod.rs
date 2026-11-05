@@ -3,11 +3,12 @@
 mod frames;
 mod monitor;
 mod r3;
+mod r3_part;
 mod read_available;
 
 // ---------------------------------------------------------------------------------------------- //
 
-pub use crate::serial::{monitor::Monitor, r3::R3};
+pub use crate::serial::{monitor::Monitor, r3::R3, r3_part::R3_PARTS};
 
 #[cfg(test)]
-pub(crate) use crate::serial::frames::strip_frames;
+pub(crate) use crate::serial::{frames::strip_frames, r3_part::parse_part};

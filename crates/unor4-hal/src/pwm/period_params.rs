@@ -1,6 +1,6 @@
 //! The resolved period: prescaler code plus the `GTPR` register value.
 
-/// A resolved GPT saw-wave period, as [`calc_period`](super::calc_period)
+/// A resolved GPT saw-wave period, as [`calc_period`](crate::pwm::calc_period)
 /// computed it from the count clock and the requested frequency.
 ///
 /// Pure arithmetic facts — re-derivable from manual §22.2.12 (TPCS
@@ -24,7 +24,7 @@ pub struct PeriodParams {
 
 impl PeriodParams {
     /// Counter ticks per PWM period (`GTPR + 1`); equals
-    /// [`Pwm::max_duty_cycle`](super::Pwm::max_duty_cycle).
+    /// [`Pwm::max_duty_cycle`](crate::pwm::Pwm::max_duty_cycle).
     pub fn period_counts(&self) -> u32 {
         self.gpr + 1
     }

@@ -1,5 +1,11 @@
 //! Links the PAC's GPT channel markers to the shared register block.
 
+use crate::{
+    elc::ElcEvent,
+    intc::Event,
+    pwm::{Bits16, Bits32, Width},
+};
+
 mod private {
     /// Sealed supertrait: nothing outside this module can implement it,
     /// so the set of [`GptChannel`] types is closed — the chip's channel
@@ -27,6 +33,41 @@ pub trait GptChannel: private::Sealed {
     /// `gpt320::RegisterBlock` layout (see the trait docs for why that
     /// typing is valid for every channel, GPT16 included).
     const PTR: *const ra4m1::gpt320::RegisterBlock;
+
+    /// Channel number n (GPT320 = 0 … GPT167 = 7): the channel drives
+    /// `GTIOCnA`/`GTIOCnB` and its ELC events are `GPTn_*` (§22.1, Table
+    /// 18.3).
+    const CHANNEL: u8;
+
+    /// Counter width: [`Bits32`] for GPT320/GPT321, [`Bits16`] for
+    /// GPT162–GPT167 (§22.1; §22.2: GPT16's `GTCNT` is 16-bit).
+    type Width: Width;
+
+    /// The channel's overflow as an ICU event (`GPTn_OVF`).
+    const OVERFLOW_EVENT: Event;
+
+    /// The channel's compare match B as an ICU event (`GPTn_CCMPB`).
+    const COMPARE_B_EVENT: Event;
+
+    /// The channel's ELC events (Table 18.3): compare match A
+    /// (`GPTn_CCMPA`), compare match B (`GPTn_CCMPB`) and overflow
+    /// (`GPTn_OVF`).
+    const ELC_COMPARE_A: ElcEvent;
+    /// See [`GptChannel::ELC_COMPARE_A`].
+    const ELC_COMPARE_B: ElcEvent;
+    /// See [`GptChannel::ELC_COMPARE_A`].
+    const ELC_OVERFLOW: ElcEvent;
+
+    /// A second token for this channel, out of thin air.
+    ///
+    /// # Safety
+    /// Only for code that held this channel's token and gave it up into a
+    /// driver that is now being taken apart (the step generator's `free`):
+    /// at most one token per channel may exist.
+    #[doc(hidden)]
+    unsafe fn steal() -> Self
+    where
+        Self: Sized;
 
     /// Takes the channel's half of the GPT out of module stop:
     /// `MSTPCRD.MSTPD6 = 0` for GPT162–GPT167, `MSTPCRD.MSTPD5 = 0` for
@@ -83,72 +124,58 @@ pub(crate) fn release_module_stop_gpt16() {
     system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
 }
 
-impl GptChannel for ra4m1::GPT320 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock = ra4m1::GPT320::PTR;
+macro_rules! gpt_channels {
+    ( $( $ty:ident: $channel:literal, $width:ident, $overflow:ident, $compare_b:ident,
+        $release:ident, $ca:ident, $cb:ident, $ovf:ident; )* ) => {
+        $(
+            impl GptChannel for ra4m1::$ty {
+                const PTR: *const ra4m1::gpt320::RegisterBlock =
+                    ra4m1::$ty::PTR as *const ra4m1::gpt320::RegisterBlock;
+                const CHANNEL: u8 = $channel;
+                type Width = $width;
+                const OVERFLOW_EVENT: Event = Event::$overflow;
+                const COMPARE_B_EVENT: Event = Event::$compare_b;
+                const ELC_COMPARE_A: ElcEvent = ElcEvent::$ca;
+                const ELC_COMPARE_B: ElcEvent = ElcEvent::$cb;
+                const ELC_OVERFLOW: ElcEvent = ElcEvent::$ovf;
 
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt32();
-    }
+                unsafe fn steal() -> Self {
+                    // Safety: the caller's contract (one token per channel);
+                    // `Peripherals::steal` only builds zero-sized tokens.
+                    unsafe { ra4m1::Peripherals::steal().$ty }
+                }
+
+                fn release_module_stop() {
+                    crate::pwm::$release();
+                }
+            }
+        )*
+    };
 }
 
-impl GptChannel for ra4m1::GPT321 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock = ra4m1::GPT321::PTR;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt32();
-    }
-}
-
-impl GptChannel for ra4m1::GPT162 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock =
-        ra4m1::GPT162::PTR as *const ra4m1::gpt320::RegisterBlock;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt16();
-    }
-}
-
-impl GptChannel for ra4m1::GPT163 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock =
-        ra4m1::GPT163::PTR as *const ra4m1::gpt320::RegisterBlock;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt16();
-    }
-}
-
-impl GptChannel for ra4m1::GPT164 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock =
-        ra4m1::GPT164::PTR as *const ra4m1::gpt320::RegisterBlock;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt16();
-    }
-}
-
-impl GptChannel for ra4m1::GPT165 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock =
-        ra4m1::GPT165::PTR as *const ra4m1::gpt320::RegisterBlock;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt16();
-    }
-}
-
-impl GptChannel for ra4m1::GPT166 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock =
-        ra4m1::GPT166::PTR as *const ra4m1::gpt320::RegisterBlock;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt16();
-    }
-}
-
-impl GptChannel for ra4m1::GPT167 {
-    const PTR: *const ra4m1::gpt320::RegisterBlock =
-        ra4m1::GPT167::PTR as *const ra4m1::gpt320::RegisterBlock;
-
-    fn release_module_stop() {
-        crate::pwm::release_module_stop_gpt16();
-    }
+gpt_channels! {
+    GPT320: 0, Bits32, Gpt0Overflow, Gpt0Ccmpb,
+        release_module_stop_gpt32,
+        Gpt0CompareA, Gpt0CompareB, Gpt0Overflow;
+    GPT321: 1, Bits32, Gpt1Overflow, Gpt1Ccmpb,
+        release_module_stop_gpt32,
+        Gpt1CompareA, Gpt1CompareB, Gpt1Overflow;
+    GPT162: 2, Bits16, Gpt2Overflow, Gpt2Ccmpb,
+        release_module_stop_gpt16,
+        Gpt2CompareA, Gpt2CompareB, Gpt2Overflow;
+    GPT163: 3, Bits16, Gpt3Overflow, Gpt3Ccmpb,
+        release_module_stop_gpt16,
+        Gpt3CompareA, Gpt3CompareB, Gpt3Overflow;
+    GPT164: 4, Bits16, Gpt4Overflow, Gpt4Ccmpb,
+        release_module_stop_gpt16,
+        Gpt4CompareA, Gpt4CompareB, Gpt4Overflow;
+    GPT165: 5, Bits16, Gpt5Overflow, Gpt5Ccmpb,
+        release_module_stop_gpt16,
+        Gpt5CompareA, Gpt5CompareB, Gpt5Overflow;
+    GPT166: 6, Bits16, Gpt6Overflow, Gpt6Ccmpb,
+        release_module_stop_gpt16,
+        Gpt6CompareA, Gpt6CompareB, Gpt6Overflow;
+    GPT167: 7, Bits16, Gpt7Overflow, Gpt7Ccmpb,
+        release_module_stop_gpt16,
+        Gpt7CompareA, Gpt7CompareB, Gpt7Overflow;
 }

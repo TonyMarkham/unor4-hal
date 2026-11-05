@@ -29,12 +29,12 @@
 
 use crate::{
     clock::Clocks,
-    gpio::{Input, Pin},
-    intc::{Ielsr, register_handler},
-    uart::{
-        BaudParams, PSEL_SCI1, PSEL_SCI2, PSEL_SCI9, ReadError, Ring, SciChannel, calc_baud,
-        init_sci, release_module_stop_sci1, release_module_stop_sci2, release_module_stop_sci9,
+    gpio::{
+        Input, Pin, SciPin,
+        role::{Rxd, Txd},
     },
+    intc::{Ielsr, register_handler},
+    uart::{BaudParams, ReadError, Ring, SciChannel, calc_baud, init_sci},
 };
 
 use core::{
@@ -71,7 +71,7 @@ static ATTACHED: AtomicU8 = AtomicU8::new(0);
 ///
 /// ```ignore
 /// static UART9: UartIrq<ra4m1::SCI9> = UartIrq::new();
-/// UART9.sci9(p.sci9, p.sci9_tx, p.sci9_rx, 115_200, &p.clocks);
+/// UART9.attach(p.sci9, p.sci9_tx, p.sci9_rx, 115_200, &p.clocks);
 /// // Main startup, outside any critical section:
 /// unsafe { unor4_hal::intc::enable_interrupts() };
 /// ```
@@ -95,97 +95,6 @@ pub struct UartIrq<S = ra4m1::SCI2, const RX: usize = 256, const TX: usize = 128
 // the instance belongs to the engine it attached to.
 unsafe impl<S: SciChannel, const RX: usize, const TX: usize> Sync for UartIrq<S, RX, TX> {}
 
-impl<const RX: usize, const TX: usize> UartIrq<ra4m1::SCI2, RX, TX> {
-    /// Claims SCI2 on the header's **D1 = TX** (P302), **D0 = RX**
-    /// (P301) — the same physical pins on both board maps — and starts
-    /// serving it from interrupts. Consumes the PAC's `SCI2` and the
-    /// two pins (exactly-once claims, like everything
-    /// `Peripherals::take` hands out).
-    ///
-    /// # Panics
-    /// If `baud` cannot be reached within 3% of PCLKA, if SCI2 was
-    /// already attached in IRQ mode, or if fewer than three IELSR
-    /// slots are free (one each for RXI, TXI, ERI).
-    pub fn sci2(
-        &'static self,
-        sci: ra4m1::SCI2,
-        tx: Pin<'3', 2, Input>,
-        rx: Pin<'3', 1, Input>,
-        baud: u32,
-        clocks: &Clocks,
-    ) {
-        self.attach(
-            sci,
-            tx,
-            rx,
-            PSEL_SCI2,
-            baud,
-            clocks,
-            release_module_stop_sci2,
-        );
-    }
-}
-
-impl<const RX: usize, const TX: usize> UartIrq<ra4m1::SCI9, RX, TX> {
-    /// Claims SCI9 on the board's internal monitor line: **TX = P109**,
-    /// **RX = P110** (see [`Uart::sci9`](super::Uart::sci9) for the
-    /// wiring and the Minima header equivalents). Consumes the PAC's
-    /// `SCI9` and the two pins.
-    ///
-    /// # Panics
-    /// If `baud` cannot be reached within 3% of PCLKA, if SCI9 was
-    /// already attached in IRQ mode, or if fewer than three IELSR
-    /// slots are free.
-    pub fn sci9(
-        &'static self,
-        sci: ra4m1::SCI9,
-        tx: Pin<'1', 9, Input>,
-        rx: Pin<'1', 10, Input>,
-        baud: u32,
-        clocks: &Clocks,
-    ) {
-        self.attach(
-            sci,
-            tx,
-            rx,
-            PSEL_SCI9,
-            baud,
-            clocks,
-            release_module_stop_sci9,
-        );
-    }
-}
-
-impl<const RX: usize, const TX: usize> UartIrq<ra4m1::SCI1, RX, TX> {
-    /// Claims SCI1 on the board's internal WiFi AT line: **TX = P501**,
-    /// **RX = P502** (see [`Uart::sci1`](super::Uart::sci1) for the
-    /// wiring and the ESP32-S3 AT server this line speaks to). Consumes
-    /// the PAC's `SCI1` and the two pins.
-    ///
-    /// # Panics
-    /// If `baud` cannot be reached within 3% of PCLKA, if SCI1 was
-    /// already attached in IRQ mode, or if fewer than three IELSR
-    /// slots are free.
-    pub fn sci1(
-        &'static self,
-        sci: ra4m1::SCI1,
-        tx: Pin<'5', 1, Input>,
-        rx: Pin<'5', 2, Input>,
-        baud: u32,
-        clocks: &Clocks,
-    ) {
-        self.attach(
-            sci,
-            tx,
-            rx,
-            PSEL_SCI1,
-            baud,
-            clocks,
-            release_module_stop_sci1,
-        );
-    }
-}
-
 impl<S, const RX: usize, const TX: usize> UartIrq<S, RX, TX>
 where
     S: SciChannel,
@@ -205,27 +114,34 @@ where
         }
     }
 
-    /// Shared attach path: bring the engine up exactly as the polling
-    /// driver does, then link the three interrupt events through
-    /// `intc` and switch `RIE` on. `TIE` stays off until the first
-    /// [`UartIrq::write`] queues bytes and primes the idle transmitter
-    /// (see [`UartIrq::write`]), so an idle transmitter never raises an
-    /// interrupt.
-    // Eight parameters: the two pins carry their own const-generic
-    // board coordinates, and splitting them off into a config struct
-    // would hide the per-channel facts (PSEL, module stop) the
-    // constructors above already own.
-    #[allow(clippy::too_many_arguments)]
-    fn attach<const TX_PORT: char, const TX_PIN: u8, const RX_PORT: char, const RX_PIN: u8>(
+    /// Claims SCI channel `sci` on `tx` and `rx` at `baud` and starts
+    /// serving it from interrupts. The pins are checked like
+    /// [`Uart::new`](crate::uart::Uart::new)'s (see there for the common
+    /// pairs): `LINK.attach(p.sci2, p.pins.d1, p.pins.d0, …)`. Consumes the
+    /// PAC's channel and the two pins (exactly-once claims, like everything
+    /// `Peripherals::take` hands out).
+    ///
+    /// The engine comes up exactly as the polling driver brings it up; then
+    /// the three interrupt events are linked through `intc` and `RIE` is
+    /// switched on. `TIE` stays off until the first [`UartIrq::write`]
+    /// queues bytes and primes the idle transmitter, so an idle transmitter
+    /// never raises an interrupt.
+    ///
+    /// # Panics
+    /// If `baud` cannot be reached within 3% of PCLKA, if the channel was
+    /// already attached in IRQ mode, or if fewer than three IELSR slots are
+    /// free (one each for RXI, TXI, ERI).
+    pub fn attach<Tx, Rx>(
         &'static self,
         sci: S,
-        tx: Pin<TX_PORT, TX_PIN, Input>,
-        rx: Pin<RX_PORT, RX_PIN, Input>,
-        psel: u8,
+        tx: Pin<Tx, Input>,
+        rx: Pin<Rx, Input>,
         baud: u32,
         clocks: &Clocks,
-        release_module_stop: fn(),
-    ) {
+    ) where
+        Tx: SciPin<S, Txd>,
+        Rx: SciPin<S, Rxd>,
+    {
         // Attach-once per engine: the rings live here, so a second
         // attach would silently steal the first one's data path.
         let mask = 1 << S::CHANNEL_ID;
@@ -234,10 +150,10 @@ where
             "SCI engine already attached in IRQ mode"
         );
 
-        release_module_stop();
+        S::release_module_stop();
         let params: BaudParams =
             calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
-        init_sci(&sci, tx, rx, psel, params);
+        init_sci(&sci, tx, rx, params);
 
         // One IELSR slot per event, handlers before enables (the
         // dispatch registry's contract). TEI is not used: flush polls

@@ -12,6 +12,6 @@ pub use crate::report::{results::Report, verdict::Verdict};
 #[cfg(test)]
 pub(crate) use crate::report::{
     check_result::CheckResult,
-    results::{table, wrap},
+    results::{summary, table, wrap},
     timestamp::stamp,
 };

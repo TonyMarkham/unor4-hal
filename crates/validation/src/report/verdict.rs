@@ -11,6 +11,9 @@ pub enum Verdict {
     Fail,
     /// The R3 validator reported the check as not applicable.
     NotApplicable,
+    /// The check belongs to the other R3 validator part, so this session
+    /// could not run it.
+    NotRun,
 }
 
 impl Verdict {
@@ -38,6 +41,7 @@ impl fmt::Display for Verdict {
             Self::Pass => "PASS",
             Self::Fail => "FAIL",
             Self::NotApplicable => "NA",
+            Self::NotRun => "NOT RUN",
         })
     }
 }

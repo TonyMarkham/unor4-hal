@@ -1,6 +1,8 @@
 //! The R3 validator link (SCI2 between the boards, 9600 8N1).
 
-use crate::serial::{frames::strip_frames, monitor::Monitor, read_available::read_available};
+use crate::serial::{
+    frames::strip_frames, monitor::Monitor, r3_part::parse_part, read_available::read_available,
+};
 
 use regex::Regex;
 use serialport::SerialPort;
@@ -76,6 +78,13 @@ impl R3 {
             std::thread::sleep(Duration::from_millis(50));
         }
         strip_frames(&text)
+    }
+
+    /// Sends '?' and returns the validator part the R3 runs, or `None`
+    /// when its help line names no part (an old or a foreign sketch).
+    #[must_use]
+    pub fn part(&mut self) -> Option<u8> {
+        parse_part(&self.send("?", r"r3-validator .*\r\n", 3, None))
     }
 
     /// Sends 'i' and reports whether the validator answered its identify

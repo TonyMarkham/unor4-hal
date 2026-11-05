@@ -1,8 +1,6 @@
 //! Request handlers: one function per validator request, per the
 //! link-contract table in the crate docs.
 
-#[cfg(feature = "wifi")]
-use crate::AT;
 use crate::{
     LINK,
     body::Body,
@@ -13,7 +11,7 @@ use crate::{
 use unor4_hal::{
     clock::Clocks,
     delay::Delay,
-    gpio::{InputPullUp, Pin},
+    gpio::{InputPullUp, Pin, pin_map::D3},
     uart::Uart,
 };
 
@@ -51,10 +49,7 @@ pub(crate) fn identify(clock: &mut Clock) -> Body {
 }
 
 /// Slice 1: an R3-timed square wave on D3 paced by the HAL's `Delay`.
-fn drive_d3<const PORT: char, const PIN: u8>(
-    pin: Pin<PORT, PIN, InputPullUp>,
-    delay: &mut Delay,
-) -> Pin<PORT, PIN, InputPullUp> {
+fn drive_d3(pin: Pin<D3, InputPullUp>, delay: &mut Delay) -> Pin<D3, InputPullUp> {
     let mut out = pin.into_output(); // falling edge: the timing reference
     delay.delay_ms(D3_PHASE_MS);
     for _ in 0..D3_CYCLES {
@@ -68,10 +63,10 @@ fn drive_d3<const PORT: char, const PIN: u8>(
 
 /// The `D` request: lend SysTick to a real [`Delay`] for the square wave,
 /// then hand D3 back to input.
-pub(crate) fn d3_square_wave<const PORT: char, const PIN: u8>(
+pub(crate) fn d3_square_wave(
     clock: &mut Clock,
     clocks: &Clocks,
-    d3: &mut Option<Pin<PORT, PIN, InputPullUp>>,
+    d3: &mut Option<Pin<D3, InputPullUp>>,
 ) -> Body {
     // Give the R3 time to arm its edge capture.
     clock.wait_ms(100);
@@ -88,9 +83,7 @@ pub(crate) fn d3_square_wave<const PORT: char, const PIN: u8>(
 }
 
 /// The `G` request: the D3 level.
-pub(crate) fn d3_level<const PORT: char, const PIN: u8>(
-    d3: &Option<Pin<PORT, PIN, InputPullUp>>,
-) -> Body {
+pub(crate) fn d3_level(d3: &Option<Pin<D3, InputPullUp>>) -> Body {
     let high = d3.as_ref().is_some_and(|pin| pin.is_high());
     let mut body = Body::new(b"G");
     body.num(u32::from(high));
@@ -99,10 +92,7 @@ pub(crate) fn d3_level<const PORT: char, const PIN: u8>(
 
 /// The `B` request: D3 read as a button (pull-up input, pressed = low),
 /// pressed by the R3; 10 s limits on the wait and the hold.
-pub(crate) fn d3_button<const PORT: char, const PIN: u8>(
-    clock: &mut Clock,
-    d3: &Option<Pin<PORT, PIN, InputPullUp>>,
-) -> Body {
+pub(crate) fn d3_button(clock: &mut Clock, d3: &Option<Pin<D3, InputPullUp>>) -> Body {
     let button = d3.as_ref().expect("D3 is owned between requests");
     let start = clock.now_ms();
     while button.is_high() && clock.now_ms() - start < 10_000 {}
@@ -204,14 +194,14 @@ pub(crate) fn burst_echo(req: &[u8], clock: &mut Clock, monitor: &mut Uart<ra4m1
 #[cfg(feature = "wifi")]
 pub(crate) fn at_check(clock: &mut Clock) -> Body {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
-    while AT.read_byte().is_some() {}
-    AT.write_all(b"AT\r\n");
-    AT.flush();
+    while crate::AT.read_byte().is_some() {}
+    crate::AT.write_all(b"AT\r\n");
+    crate::AT.flush();
     let start = clock.now_ms();
     let (mut seen, mut previous, mut ok) = (0u32, 0u8, false);
     let mut first = [0u8; 16];
     while clock.now_ms() - start < 1500 {
-        if let Some(byte) = AT.read_byte() {
+        if let Some(byte) = crate::AT.read_byte() {
             if (seen as usize) < first.len() {
                 first[seen as usize] = byte;
             }

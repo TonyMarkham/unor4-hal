@@ -21,12 +21,7 @@
 //! only — never transcribed. §11.2.6: VBTBKRn is 8-bit access; §12.1
 //! lists it under PRC1 protection.
 
-#[cfg(feature = "wifi")]
-use crate::gpio::Output;
-use crate::gpio::{Input, Pin};
-
-#[cfg(feature = "wifi")]
-use embedded_hal::digital::PinState;
+use crate::gpio::{Input, Pin, pin_map::UsbMux};
 
 /// `SYSTEM.VBTBKR[1]` (§11.2.6: VBTBKR0 at 0x4001_E500, 8-bit access).
 #[cfg(feature = "wifi")]
@@ -43,10 +38,10 @@ const PRCR_LOCK: u16 = 0xA500;
 /// Taking this value drives the mux to the RA4M1 (WiFi). Explicit
 /// [`Self::release`] returns it to the bridge after the device detaches.
 /// Dropping the value alone does not release the hardware. Mux ownership
-/// is separate from [`super::Usbfs::new`]. See also SJ1 in the board docs.
+/// is separate from [`Usbfs::new`](crate::usb::Usbfs::new). See also SJ1 in the board docs.
 pub struct UsbPort {
     #[cfg(feature = "wifi")]
-    _mux_pin: Pin<'4', 8, Output>,
+    _mux_pin: Pin<UsbMux, crate::gpio::Output>,
 }
 
 impl UsbPort {
@@ -56,7 +51,9 @@ impl UsbPort {
     /// disappears. Minima has no mux, so this has no effect there.
     pub fn release(self) {
         #[cfg(feature = "wifi")]
-        let _pin = self._mux_pin.into_output_in_state(PinState::Low);
+        let _pin = self
+            ._mux_pin
+            .into_output_in_state(embedded_hal::digital::PinState::Low);
     }
 
     /// Takes the USB connector for the RA4M1.
@@ -70,7 +67,7 @@ impl UsbPort {
     ///
     /// Minima: the connector has no switch — this consumes the pin and
     /// returns immediately.
-    pub fn take(pin: Pin<'4', 8, Input>) -> Self {
+    pub fn take(pin: Pin<UsbMux, Input>) -> Self {
         #[cfg(feature = "wifi")]
         {
             let system = unsafe { &*ra4m1::SYSTEM::PTR };
@@ -78,7 +75,7 @@ impl UsbPort {
             unsafe { core::ptr::write_volatile(VBTBKR1, 40) };
             system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
             UsbPort {
-                _mux_pin: pin.into_output_in_state(PinState::High),
+                _mux_pin: pin.into_output_in_state(embedded_hal::digital::PinState::High),
             }
         }
         #[cfg(feature = "minima")]

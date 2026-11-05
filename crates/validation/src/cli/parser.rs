@@ -5,7 +5,7 @@ use crate::cli::command::Command;
 use clap::Parser;
 
 /// Host side of the validation pair (`r3-validator` + `r4_validator`).
-/// Neither builds nor uploads: flash both boards first (README, Validation).
+/// Neither builds nor uploads: flash both boards first (Validation.md).
 #[derive(Parser)]
 #[command(name = "validate", version)]
 pub struct Cli {

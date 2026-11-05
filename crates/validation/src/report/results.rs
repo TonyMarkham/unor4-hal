@@ -64,19 +64,22 @@ impl Report {
             .count()
     }
 
+    /// How many checks this session could not run (the other R3 part's).
+    #[must_use]
+    pub fn not_run(&self) -> usize {
+        self.results
+            .iter()
+            .filter(|result| result.verdict == Verdict::NotRun)
+            .count()
+    }
+
     /// Writes the table and summary to `<stamp>.txt` and prints both.
     ///
     /// # Errors
     /// When the artifact file cannot be written.
     pub fn finish(&self) -> std::io::Result<()> {
         let table = table(&self.results);
-        let failed = self.failed();
-        let summary = format!(
-            "{}/{} checks passed ({} failed)",
-            self.results.len() - failed,
-            self.results.len(),
-            failed
-        );
+        let summary = summary(self.results.len(), self.failed(), self.not_run());
         let dir = artifacts_dir();
         fs::create_dir_all(&dir)?;
         fs::write(
@@ -86,6 +89,23 @@ impl Report {
         println!("{table}{summary}");
         Ok(())
     }
+}
+
+/// The summary line: checks passed out of those run, and how many belong
+/// to the other R3 part.
+///
+/// `pub(crate)`: the host tests in `src/tests` exercise it; it is not
+/// part of the CLI's API.
+#[must_use]
+pub(crate) fn summary(total: usize, failed: usize, not_run: usize) -> String {
+    let run = total - not_run;
+    let mut line = format!("{}/{run} checks passed ({failed} failed)", run - failed);
+    if not_run != 0 {
+        line.push_str(&format!(
+            "; {not_run} not run: they need another R3 part (Validation.md)"
+        ));
+    }
+    line
 }
 
 /// The run's artifact directory: `<workspace>/target/validation`.

@@ -9,7 +9,7 @@
 //! no_std view of a `no_std` crate, firmware builds), while the tests
 //! themselves still run on the host via `cargo test`.
 
-use crate::gpio::PORT_PINS;
+use crate::gpio::pin_map::for_each_header;
 
 /// The checked-in transcription, living next to the crate manifest:
 /// `pins.csv`, transcribed from `variants/MINIMA/variant.cpp` and
@@ -67,34 +67,31 @@ fn given_golden_table_when_parsed_then_both_boards_list_the_same_20_header_pins(
     assert!(aligned, "board sections diverge — see pins.csv");
 }
 
+/// The board the crate is compiled for.
 #[cfg(feature = "wifi")]
-#[test]
-fn given_compiled_wifi_map_when_compared_to_golden_table_then_all_20_pins_match() {
-    // given: the WiFi map compiled into the crate (feature `wifi`) and
-    // the transcribed table
-    // when: every compiled pin is looked up in the transcription
-    // then: port letter and pin index agree — every one of the 20
-    for (name, port, index) in PORT_PINS {
-        let row = rows_of("wifi", GOLDEN.lines())
-            .find(|row| row.1 == name)
-            .unwrap_or_else(|| panic!("wifi row missing for {name}"));
-        assert_eq!(row.2, port, "{name}: port letter");
-        assert_eq!(row.3, index, "{name}: pin index");
-    }
-}
-
+const BOARD: &str = "wifi";
+/// The board the crate is compiled for.
 #[cfg(feature = "minima")]
+const BOARD: &str = "minima";
+
 #[test]
-fn given_compiled_minima_map_when_compared_to_golden_table_then_all_20_pins_match() {
-    // given: the Minima map compiled into the crate (feature `minima`)
+fn given_compiled_map_when_compared_to_golden_table_then_all_20_pins_match() {
+    // given: the map compiled into the crate (feature `wifi` or `minima`)
     // and the transcribed table
-    // when: every compiled pin is looked up in the transcription
-    // then: port letter and pin index agree — every one of the 20
-    for (name, port, index) in PORT_PINS {
-        let row = rows_of("minima", GOLDEN.lines())
+    let mut count = 0;
+
+    // when: every compiled header is looked up in the transcription
+    for_each_header(|name, port, index| {
+        count += 1;
+        let row = rows_of(BOARD, GOLDEN.lines())
             .find(|row| row.1 == name)
-            .unwrap_or_else(|| panic!("minima row missing for {name}"));
+            .unwrap_or_else(|| panic!("{BOARD} row missing for {name}"));
+
+        // then: port letter and pin index agree
         assert_eq!(row.2, port, "{name}: port letter");
         assert_eq!(row.3, index, "{name}: pin index");
-    }
+    });
+
+    // then: all 20 headers were compiled
+    assert_eq!(count, 20, "the {BOARD} map must compile 20 header pins");
 }

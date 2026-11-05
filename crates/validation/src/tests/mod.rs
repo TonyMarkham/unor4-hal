@@ -2,6 +2,7 @@
 //! only by `cargo test` (see the `#[cfg(test)]` gate in main.rs).
 
 mod frames;
+mod r3_part;
 mod results;
 mod retention;
 mod slices;

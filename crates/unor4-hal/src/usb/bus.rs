@@ -6,6 +6,8 @@
 //! section numbers. The adapter translates hardware CTSQ/DVSQ and packet
 //! completion flags into usb-device events; usb-device owns request parsing.
 
+use crate::usb::UsbPort;
+
 use core::cell::Cell;
 use usb_device::{
     UsbDirection, UsbError,
@@ -184,7 +186,7 @@ pub fn diagnostic_trace(index: usize) -> Option<[u8; 74]> {
 /// Construct with [`Usbfs::new`] (which runs the hardware bring-up) and
 /// hand it to `usb_device::UsbBusAllocator::new`. The type owns the PAC
 /// peripheral (exactly-once claim). Mux ownership is separate: the
-/// application explicitly calls [`super::UsbPort::take`] on WiFi.
+/// application explicitly calls [`UsbPort::take`] on WiFi.
 ///
 /// Endpoint model: EP0 is the hardware DCP (64-byte single buffer,
 /// CFIFO port only, §27.3.9). Every other endpoint is one hardware
@@ -235,7 +237,7 @@ impl Usbfs {
     /// [`UsbBus::enable`], which connects if VBUS is present. Later polls
     /// handle VBUS arriving after enable (`VBSTS`, §27.2.13).
     ///
-    /// Taking the connector ([`super::UsbPort::take`]) is the
+    /// Taking the connector ([`UsbPort::take`]) is the
     /// application's separate decision and may happen before or after
     /// this call; the device only becomes visible to the host once both
     /// have happened.
@@ -311,7 +313,7 @@ impl Usbfs {
         critical_section::with(|_| Self::regs().intsts0.read().bits() & (INTSTS0_VALID | 7) == 0)
     }
 
-    pub(super) fn reboot_to_bootloader(&self, port: super::UsbPort) -> ! {
+    pub(super) fn reboot_to_bootloader(&self, port: UsbPort) -> ! {
         critical_section::with(|_| {
             let regs = Self::regs();
             regs.intenb0.write(|w| unsafe { w.bits(0) });

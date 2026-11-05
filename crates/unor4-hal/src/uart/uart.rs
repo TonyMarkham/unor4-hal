@@ -2,145 +2,62 @@
 
 use crate::{
     clock::Clocks,
-    gpio::{Input, Pin},
+    gpio::{
+        Input, Pin, SciPin,
+        role::{Rxd, Txd},
+    },
     uart::{BaudParams, ReadError, ReadResult, SciChannel, calc_baud},
 };
 
-/// `PRCR` key + PRC1 write-enable (module-stop registers are PRC1-
-/// protected, like the clock registers of Slice 1).
-const PRCR_UNLOCK_PRC1: u16 = 0xA502;
-/// `PRCR` relock (permission bits cleared).
-const PRCR_LOCK: u16 = 0xA500;
-
-/// `PSEL` for TXD2/RXD2 on P302/P301 (see the parent module's docs for
-/// the verification chain).
-pub(crate) const PSEL_SCI2: u8 = 0x04;
-
-/// `PSEL` for TXD9/RXD9 on P109/P110 (see the parent module's docs for
-/// the verification chain).
-pub(crate) const PSEL_SCI9: u8 = 0x05;
-
-/// `PSEL` for TXD1/RXD1 on P501/P502 — RA4M1 hardware manual
-/// (R01UH0887EJ0100) §19 "I/O Ports", Table 19.13 "Register settings for
-/// input/output pin function (PORT5)": `TXD1/MOSI1/SDA1` on P501 and
-/// `RXD1/MISO1/SCL1` on P502 both sit at `PSEL[4:0] = 00101b`. Same
-/// odd-class value as SCI9 (Slice 4 hardware-proven); FSP's
-/// `IOPORT_PERIPHERAL_SCI1_3_5_7_9 = 0x05` and the Arduino core's
-/// `SCI_ODD_CFG` decode agree.
-pub(crate) const PSEL_SCI1: u8 = 0x05;
-
 /// One claimed SCI channel, running in polling mode (8N1).
 ///
-/// `S` is the PAC's peripheral marker for the engine — SCI2 (the
-/// default, so the bare `Uart` name still means the header UART) or
-/// SCI9. The marker is held, not copied, so a second `Uart` for the
-/// same channel is impossible through the normal ownership path.
+/// `S` is the PAC's peripheral marker for the engine — SCI2 (the default,
+/// so the bare `Uart` name still means the header UART), SCI9 or SCI1. The
+/// marker is held, not copied, so a second `Uart` for the same channel is
+/// impossible through the normal ownership path.
 pub struct Uart<S = ra4m1::SCI2> {
     _sci: S,
-}
-
-impl Uart<ra4m1::SCI2> {
-    /// Claims SCI2 on the header's **D1 = TX** (P302), **D0 = RX**
-    /// (P301) — the same physical pins on both board maps.
-    ///
-    /// Consumes the PAC's `SCI2` (exactly-once claim, like everything
-    /// `Peripherals::take` hands out), the two pins in their
-    /// reset-default input state, and the resolved clocks (the baud
-    /// reference is PCLKA).
-    ///
-    /// # Panics
-    /// If `baud` cannot be reached within 3% of PCLKA.
-    pub fn sci2(
-        sci: ra4m1::SCI2,
-        tx: Pin<'3', 2, Input>,
-        rx: Pin<'3', 1, Input>,
-        baud: u32,
-        clocks: &Clocks,
-    ) -> Self {
-        release_module_stop_sci2();
-        let params: BaudParams =
-            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
-        Self::init(sci, tx, rx, PSEL_SCI2, params)
-    }
-}
-
-impl Uart<ra4m1::SCI9> {
-    /// Claims SCI9 on the board's internal monitor line: **TX = P109**,
-    /// **RX = P110**. On the WiFi board these are not header pins — they
-    /// run through the level translator to the ESP32-S3, whose bridge
-    /// firmware forwards the line to the board's own USB monitor port.
-    /// On the Minima the same chip
-    /// pins *are* header D11/D12 — pass `pins.d11`/`pins.d12`.
-    ///
-    /// Consumes the PAC's `SCI9` (exactly-once claim, like everything
-    /// `Peripherals::take` hands out), the two pins in their
-    /// reset-default input state, and the resolved clocks (the baud
-    /// reference is PCLKA).
-    ///
-    /// # Panics
-    /// If `baud` cannot be reached within 3% of PCLKA.
-    pub fn sci9(
-        sci: ra4m1::SCI9,
-        tx: Pin<'1', 9, Input>,
-        rx: Pin<'1', 10, Input>,
-        baud: u32,
-        clocks: &Clocks,
-    ) -> Self {
-        release_module_stop_sci9();
-        let params: BaudParams =
-            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
-        Self::init(sci, tx, rx, PSEL_SCI9, params)
-    }
-}
-
-impl Uart<ra4m1::SCI1> {
-    /// Claims SCI1 on the board's internal WiFi AT line: **TX = P501**,
-    /// **RX = P502**, wired board-internal to the ESP32-S3. Not header
-    /// pins on either board: on the
-    /// Minima the same chip pins sit on the SWD connector (Arduino core
-    /// `variants/MINIMA/variant.cpp`: "TX on SWD connector" / "RX on SWD
-    /// connector"). The ESP32-S3 side runs the bridge firmware's AT
-    /// server (SudoMaker/chAT) at 115200 8N1 — the stock peer for this
-    /// line, and the whole point of the channel.
-    ///
-    /// Consumes the PAC's `SCI1` (exactly-once claim, like everything
-    /// `Peripherals::take` hands out), the two pins in their
-    /// reset-default input state, and the resolved clocks (the baud
-    /// reference is PCLKA).
-    ///
-    /// # Panics
-    /// If `baud` cannot be reached within 3% of PCLKA.
-    pub fn sci1(
-        sci: ra4m1::SCI1,
-        tx: Pin<'5', 1, Input>,
-        rx: Pin<'5', 2, Input>,
-        baud: u32,
-        clocks: &Clocks,
-    ) -> Self {
-        release_module_stop_sci1();
-        let params: BaudParams =
-            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
-        Self::init(sci, tx, rx, PSEL_SCI1, params)
-    }
 }
 
 impl<S> Uart<S>
 where
     S: SciChannel,
 {
-    /// Shared bring-up. Every SCI engine presents the same non-FIFO
-    /// register view to this driver (see `SciChannel::block` for the
-    /// SCI1 layout-identity evidence), so the sequence Slice 3
-    /// proved on hardware applies verbatim — only the module-stop bit,
-    /// the pins, and `PSEL` differ per engine.
-    fn init<const TX_PORT: char, const TX_PIN: u8, const RX_PORT: char, const RX_PIN: u8>(
+    /// Claims SCI channel `sci` on `tx` and `rx` at `baud`.
+    ///
+    /// The pins must carry the channel's `TXD`/`RXD`; both are type checks
+    /// on [`SciPin`], so a wrong pair fails `cargo check`:
+    /// `` `D1` cannot be `SCI1` `Txd` ``. The common uses:
+    /// - header UART, both boards: `Uart::new(p.sci2, p.pins.d1, p.pins.d0, …)`
+    ///   (D1 = TX on P302, D0 = RX on P301);
+    /// - monitor line to the ESP32-S3 bridge, WiFi:
+    ///   `Uart::new(p.sci9, p.sci9_tx, p.sci9_rx, …)` (P109/P110 through the
+    ///   level translator); on the Minima the same chip pins are headers
+    ///   D11/D12;
+    /// - WiFi AT line: `Uart::new(p.sci1, p.sci1_tx, p.sci1_rx, …)`
+    ///   (P501/P502, board-internal to the ESP32-S3's AT server, 115200 8N1).
+    ///
+    /// Consumes the PAC's channel and the two pins in their reset-default
+    /// input state (exactly-once claims, like everything `Peripherals::take`
+    /// hands out); the baud reference is PCLKA.
+    ///
+    /// # Panics
+    /// If `baud` cannot be reached within 3% of PCLKA.
+    pub fn new<Tx, Rx>(
         sci: S,
-        tx: Pin<TX_PORT, TX_PIN, Input>,
-        rx: Pin<RX_PORT, RX_PIN, Input>,
-        psel: u8,
-        params: BaudParams,
-    ) -> Self {
-        init_sci(&sci, tx, rx, psel, params);
+        tx: Pin<Tx, Input>,
+        rx: Pin<Rx, Input>,
+        baud: u32,
+        clocks: &Clocks,
+    ) -> Self
+    where
+        Tx: SciPin<S, Txd>,
+        Rx: SciPin<S, Rxd>,
+    {
+        S::release_module_stop();
+        let params: BaudParams =
+            calc_baud(clocks.pclka(), baud).expect("requested baud is out of tolerance for PCLKA");
+        init_sci(&sci, tx, rx, params);
 
         Uart { _sci: sci }
     }
@@ -196,61 +113,24 @@ where
     }
 }
 
-/// Takes SCI2 out of module stop (`MSTPCRB.MSTPB29 = 0`). The MSTP
-/// registers are PRC1-protected, so the write window unlocks and relocks
-/// `PRCR`. Addresses from the SVD: `MSTP` block at `0x4004_7000`,
-/// `MSTPCRB` first at offset `0x00`.
-pub(crate) fn release_module_stop_sci2() {
-    let system = unsafe { &*ra4m1::SYSTEM::PTR };
-    let mstp = unsafe { &*ra4m1::MSTP::PTR };
-    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
-    mstp.mstpcrb.modify(|_, w| w.mstpb29().clear_bit());
-    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
-}
-
-/// Takes SCI9 out of module stop (`MSTPCRB.MSTPB22 = 0`) — same `MSTP`
-/// block and `PRCR.PRC1` unlock as SCI2; the SVD names bit 22 "Serial
-/// Communication Interface 9 Module Stop".
-pub(crate) fn release_module_stop_sci9() {
-    let system = unsafe { &*ra4m1::SYSTEM::PTR };
-    let mstp = unsafe { &*ra4m1::MSTP::PTR };
-    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
-    mstp.mstpcrb.modify(|_, w| w.mstpb22().clear_bit());
-    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
-}
-
-/// Takes SCI1 out of module stop (`MSTPCRB.MSTPB30 = 0`) — same `MSTP`
-/// block and `PRCR.PRC1` unlock as SCI2. Manual §10.2.3 "Module Stop
-/// Control Register B (MSTPCRB)" names bit 30 "Serial Communication
-/// Interface 1 Module Stop" (Target module: SCI1); the SVD field
-/// `mstpb30` matches.
-pub(crate) fn release_module_stop_sci1() {
-    let system = unsafe { &*ra4m1::SYSTEM::PTR };
-    let mstp = unsafe { &*ra4m1::MSTP::PTR };
-    system.prcr.write(|w| unsafe { w.bits(PRCR_UNLOCK_PRC1) });
-    mstp.mstpcrb.modify(|_, w| w.mstpb30().clear_bit());
-    system.prcr.write(|w| unsafe { w.bits(PRCR_LOCK) });
-}
-
 /// Shared SCI bring-up for both driver modes: pin muxing, format
 /// registers, and the baud generator — with the transmitter and
 /// receiver on and every interrupt source off. The register sequence is
-/// exactly the one Slice 3 proved on hardware (`Uart::init` was the
+/// exactly the one Slice 3 proved on hardware (`Uart::new` was the
 /// first user; Slice 5's IRQ driver brings an engine up through this
-/// too, then turns `RIE`/`TIE` on once its interrupts are linked).
-pub(crate) fn init_sci<
-    S: SciChannel,
-    const TX_PORT: char,
-    const TX_PIN: u8,
-    const RX_PORT: char,
-    const RX_PIN: u8,
->(
+/// too, then turns `RIE`/`TIE` on once its interrupts are linked). Each
+/// pin is muxed with its own `PSEL` from the pin table: TX and RX can
+/// differ (see the module docs).
+pub(crate) fn init_sci<S, Tx, Rx>(
     sci: &S,
-    tx: Pin<TX_PORT, TX_PIN, Input>,
-    rx: Pin<RX_PORT, RX_PIN, Input>,
-    psel: u8,
+    tx: Pin<Tx, Input>,
+    rx: Pin<Rx, Input>,
     params: BaudParams,
-) {
+) where
+    S: SciChannel,
+    Tx: SciPin<S, Txd>,
+    Rx: SciPin<S, Rxd>,
+{
     // One shared register view for every engine (see `SciChannel::block`
     // for the SCI1 layout-identity evidence).
     let sci = sci.block();
@@ -259,8 +139,8 @@ pub(crate) fn init_sci<
     // makes the SCI output a static high on TxD, so there is no
     // window where the receiver can latch a false start bit.
     sci.sptr.write(|w| w.spb2io()._1().spb2dt()._1());
-    let _tx = tx.into_alternate(psel);
-    let _rx = rx.into_alternate(psel);
+    let _tx = tx.into_alternate(Tx::PSEL);
+    let _rx = rx.into_alternate(Rx::PSEL);
 
     // SCI initialization in asynchronous mode (manual, SCI chapter):
     // SCR = 0 first — TE/RE off, all interrupt sources off...

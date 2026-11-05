@@ -27,7 +27,7 @@ use usbd_serial::SerialPort;
 
 /// A blocking USB CDC-ACM serial port.
 ///
-/// `B` is the bus adapter ([`super::Usbfs`]); `'a` ties the class and
+/// `B` is the bus adapter ([`Usbfs`]); `'a` ties the class and
 /// kernel to the caller-owned `UsbBusAllocator`; no allocation or leak
 /// is required.
 pub struct CdcAcm<'a, B: UsbBus> {
@@ -80,7 +80,7 @@ impl<'a, B: UsbBus> CdcAcm<'a, B> {
         self.device.state()
     }
 
-    /// Borrows the bus for platform-specific facilities such as [`super::UsbWake`].
+    /// Borrows the bus for platform-specific facilities such as [`UsbWake`](crate::usb::UsbWake).
     pub fn bus(&self) -> &B {
         self.device.bus()
     }

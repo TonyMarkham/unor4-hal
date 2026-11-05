@@ -1,118 +1,112 @@
-//! The Arduino header pins — one map per board, selected by crate feature.
-//!
-//! Correctness chain: both maps derive from the
-//! Arduino core's board tables, transcribed into `pins.csv` (cross-check
-//! data only — nothing copied). The golden test in
-//! `src/tests/pins.rs` proves the compiled map equals that transcription.
-//! The WiFi map is additionally hardware-proven: slice 1 blinks
-//! D13 = P102 on the real board.
-//!
-//! Docs-trap mechanism: every pin's doc shows the mapping for **both**
-//! boards, regardless of which feature is active.
+//! The Arduino header pins, each free or taken by a driver.
 
-use crate::gpio::{Input, pin::Pin};
+use crate::gpio::{Input, Pin, pin_map};
 
-/// Stamps out one board's `Pins` struct, its constructor, and the
-/// `PORT_PINS` table the golden test checks against `pins.csv`.
+/// The Arduino header pins of the selected board (feature `wifi` or
+/// `minima`), in [`Peripherals::pins`](crate::Peripherals).
 ///
-/// Single source of truth: the struct fields' *types* and the test table
-/// are generated from the same entries, so the compiled map and its test
-/// shadow cannot drift apart.
-macro_rules! pin_map {
-    (
-        $(#[$meta:meta])*
-        $( $field:ident : $port:literal , $index:literal ; $doc:literal ),* $(,)?
-    ) => {
-        $(#[$meta])*
-        pub struct Pins {
-            $(
-                #[doc = $doc]
-                pub $field: Pin<$port, $index, Input>,
-            )*
-        }
-
-        impl Pins {
-            /// Consumes the GPIO-related PAC peripherals purely to
-            /// guarantee exclusive ownership; register access goes through
-            /// computed addresses. Both boards claim the same ports — the
-            /// signature stays feature-independent on purpose.
-            pub fn new(
-                _port0: ra4m1::PORT0,
-                _port1: ra4m1::PORT1,
-                _port3: ra4m1::PORT3,
-                _port4: ra4m1::PORT4,
-                _pfs: ra4m1::PFS,
-                _pmisc: ra4m1::PMISC,
-            ) -> Self {
-                Self {
-                    $( $field: Pin::new(), )*
-                }
-            }
-        }
-
-        /// The compiled map as `(field name, port letter, pin index)`.
-        /// `pub(crate)`: read by the golden test in `src/tests/pins.rs`
-        /// without joining the public API. Host-only (`cfg(test)`) —
-        /// firmware never needs it.
-        #[cfg(test)]
-        pub(crate) const PORT_PINS: [(&str, char, u8); 20] = [
-            $( (stringify!($field), $port, $index), )*
-        ];
-    };
+/// Each field is `Pin<Dn, Input>` (reset-default input) while the pin is
+/// free, and [`Taken`](crate::peripherals::Taken) once a driver built with
+/// `with_peripherals` owns it: using it again is a type error, so a pin
+/// can never have two owners. The type parameters are the fields' types;
+/// firmware never writes them out.
+pub struct Pins<
+    A0 = Pin<pin_map::A0, Input>,
+    A1 = Pin<pin_map::A1, Input>,
+    A2 = Pin<pin_map::A2, Input>,
+    A3 = Pin<pin_map::A3, Input>,
+    A4 = Pin<pin_map::A4, Input>,
+    A5 = Pin<pin_map::A5, Input>,
+    D0 = Pin<pin_map::D0, Input>,
+    D1 = Pin<pin_map::D1, Input>,
+    D2 = Pin<pin_map::D2, Input>,
+    D3 = Pin<pin_map::D3, Input>,
+    D4 = Pin<pin_map::D4, Input>,
+    D5 = Pin<pin_map::D5, Input>,
+    D6 = Pin<pin_map::D6, Input>,
+    D7 = Pin<pin_map::D7, Input>,
+    D8 = Pin<pin_map::D8, Input>,
+    D9 = Pin<pin_map::D9, Input>,
+    D10 = Pin<pin_map::D10, Input>,
+    D11 = Pin<pin_map::D11, Input>,
+    D12 = Pin<pin_map::D12, Input>,
+    D13 = Pin<pin_map::D13, Input>,
+> {
+    /// Header A0.
+    pub a0: A0,
+    /// Header A1.
+    pub a1: A1,
+    /// Header A2.
+    pub a2: A2,
+    /// Header A3.
+    pub a3: A3,
+    /// Header A4.
+    pub a4: A4,
+    /// Header A5.
+    pub a5: A5,
+    /// Header D0.
+    pub d0: D0,
+    /// Header D1.
+    pub d1: D1,
+    /// Header D2.
+    pub d2: D2,
+    /// Header D3.
+    pub d3: D3,
+    /// Header D4.
+    pub d4: D4,
+    /// Header D5.
+    pub d5: D5,
+    /// Header D6.
+    pub d6: D6,
+    /// Header D7.
+    pub d7: D7,
+    /// Header D8.
+    pub d8: D8,
+    /// Header D9.
+    pub d9: D9,
+    /// Header D10.
+    pub d10: D10,
+    /// Header D11.
+    pub d11: D11,
+    /// Header D12.
+    pub d12: D12,
+    /// Header D13.
+    pub d13: D13,
 }
 
-// ---------------------------------------------------------------------------------------------- //
-
-#[cfg(feature = "wifi")]
-pin_map! {
-    /// Arduino header pins — UNO R4 **WiFi** map (feature `wifi`).
-    ///
-    /// All fields start in reset-default input mode.
-    d0: '3', 1; "D0 — WiFi = P301, Minima = P301. SCI2 RX (UART).",
-    d1: '3', 2; "D1 — WiFi = P302, Minima = P302. SCI2 TX (UART).",
-    d2: '1', 4; "D2 — WiFi = P104, Minima = P105.",
-    d3: '1', 5; "D3 — WiFi = P105, Minima = P104.",
-    d4: '1', 6; "D4 — WiFi = P106, Minima = P103.",
-    d5: '1', 7; "D5 — WiFi = P107, Minima = P102.",
-    d6: '1', 11; "D6 — WiFi = P111, Minima = P106.",
-    d7: '1', 12; "D7 — WiFi = P112, Minima = P107.",
-    d8: '3', 4; "D8 — WiFi = P304, Minima = P304.",
-    d9: '3', 3; "D9 — WiFi = P303, Minima = P303.",
-    d10: '1', 3; "D10 — WiFi = P103, Minima = P112.",
-    d11: '4', 11; "D11 — WiFi = P411, Minima = P109 (SCI9 TX on Minima).",
-    d12: '4', 10; "D12 — WiFi = P410, Minima = P110 (SCI9 RX on Minima).",
-    d13: '1', 2; "D13 — WiFi = P102 (onboard LED), Minima = P111.",
-    a0: '0', 14; "A0 — WiFi = P014, Minima = P014. Also DAC0.",
-    a1: '0', 0; "A1 — WiFi = P000, Minima = P000.",
-    a2: '0', 1; "A2 — WiFi = P001, Minima = P001.",
-    a3: '0', 2; "A3 — WiFi = P002, Minima = P002.",
-    a4: '1', 1; "A4/SDA — WiFi = P101, Minima = P101.",
-    a5: '1', 0; "A5/SCL — WiFi = P100, Minima = P100.",
-}
-
-#[cfg(feature = "minima")]
-pin_map! {
-    /// Arduino header pins — UNO R4 **Minima** map (feature `minima`).
-    ///
-    /// All fields start in reset-default input mode.
-    d0: '3', 1; "D0 — WiFi = P301, Minima = P301. SCI2 RX (UART).",
-    d1: '3', 2; "D1 — WiFi = P302, Minima = P302. SCI2 TX (UART).",
-    d2: '1', 5; "D2 — WiFi = P104, Minima = P105.",
-    d3: '1', 4; "D3 — WiFi = P105, Minima = P104.",
-    d4: '1', 3; "D4 — WiFi = P106, Minima = P103.",
-    d5: '1', 2; "D5 — WiFi = P107, Minima = P102.",
-    d6: '1', 6; "D6 — WiFi = P111, Minima = P106.",
-    d7: '1', 7; "D7 — WiFi = P112, Minima = P107.",
-    d8: '3', 4; "D8 — WiFi = P304, Minima = P304.",
-    d9: '3', 3; "D9 — WiFi = P303, Minima = P303.",
-    d10: '1', 12; "D10 — WiFi = P103, Minima = P112.",
-    d11: '1', 9; "D11 — WiFi = P411, Minima = P109 (SCI9 TX on Minima).",
-    d12: '1', 10; "D12 — WiFi = P410, Minima = P110 (SCI9 RX on Minima).",
-    d13: '1', 11; "D13 — WiFi = P102 (onboard LED), Minima = P111.",
-    a0: '0', 14; "A0 — WiFi = P014, Minima = P014. Also DAC0.",
-    a1: '0', 0; "A1 — WiFi = P000, Minima = P000.",
-    a2: '0', 1; "A2 — WiFi = P001, Minima = P001.",
-    a3: '0', 2; "A3 — WiFi = P002, Minima = P002.",
-    a4: '1', 1; "A4/SDA — WiFi = P101, Minima = P101.",
-    a5: '1', 0; "A5/SCL — WiFi = P100, Minima = P100.",
+impl Pins {
+    /// Every header pin, free. Consumes the GPIO-related PAC peripherals
+    /// purely to guarantee exclusive ownership; register access goes
+    /// through computed addresses. Both boards claim the same ports.
+    pub(crate) fn new(
+        _port0: ra4m1::PORT0,
+        _port1: ra4m1::PORT1,
+        _port3: ra4m1::PORT3,
+        _port4: ra4m1::PORT4,
+        _pfs: ra4m1::PFS,
+        _pmisc: ra4m1::PMISC,
+    ) -> Self {
+        Self {
+            a0: Pin::new(),
+            a1: Pin::new(),
+            a2: Pin::new(),
+            a3: Pin::new(),
+            a4: Pin::new(),
+            a5: Pin::new(),
+            d0: Pin::new(),
+            d1: Pin::new(),
+            d2: Pin::new(),
+            d3: Pin::new(),
+            d4: Pin::new(),
+            d5: Pin::new(),
+            d6: Pin::new(),
+            d7: Pin::new(),
+            d8: Pin::new(),
+            d9: Pin::new(),
+            d10: Pin::new(),
+            d11: Pin::new(),
+            d12: Pin::new(),
+            d13: Pin::new(),
+        }
+    }
 }

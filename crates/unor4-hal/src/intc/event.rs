@@ -382,6 +382,31 @@ pub enum Event {
     SceTadi = 0xDB,
 }
 
+impl Event {
+    /// The external pin interrupt `IRQn` (`PORT_IRQn`, codes 001h–010h);
+    /// `None` for 13 (the RA4M1 has no IRQ13) and above 15.
+    pub const fn gpio_irq(irq: u8) -> Option<Self> {
+        Some(match irq {
+            0 => Self::GpioIrq0,
+            1 => Self::GpioIrq1,
+            2 => Self::GpioIrq2,
+            3 => Self::GpioIrq3,
+            4 => Self::GpioIrq4,
+            5 => Self::GpioIrq5,
+            6 => Self::GpioIrq6,
+            7 => Self::GpioIrq7,
+            8 => Self::GpioIrq8,
+            9 => Self::GpioIrq9,
+            10 => Self::GpioIrq10,
+            11 => Self::GpioIrq11,
+            12 => Self::GpioIrq12,
+            14 => Self::GpioIrq14,
+            15 => Self::GpioIrq15,
+            _ => return None,
+        })
+    }
+}
+
 /// Every `Event`, for the table-integrity tests (`src/tests/intc.rs`).
 /// Kept next to the enum so a new variant gets added here in the same
 /// edit.
