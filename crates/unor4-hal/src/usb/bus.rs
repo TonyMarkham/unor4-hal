@@ -83,104 +83,6 @@ pub(crate) const fn control_status_in(ctsq: u16, empty: bool, auto_address: bool
     empty && (ctsq == CTSQ_WRITE_DATA || ctsq == 4 || ctsq == 5 || auto_address)
 }
 
-#[cfg(feature = "usb-trace")]
-fn trace(tag: u8, data: &[u8]) {
-    let regs = unsafe { &*ra4m1::USBFS::PTR };
-    let mut row = [0u8; 74];
-    row[0] = tag;
-    row[1] = data.len().min(64) as u8;
-    for (i, value) in [
-        regs.intsts0.read().bits(),
-        regs.cfifosel.read().bits(),
-        regs.cfifoctr.read().bits(),
-        regs.dcpctr.read().bits(),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        row[2 + i * 2..4 + i * 2].copy_from_slice(&value.to_le_bytes());
-    }
-    let len = usize::from(row[1]);
-    row[10..10 + len].copy_from_slice(&data[..len]);
-    critical_section::with(|cs| {
-        let _ = cs;
-        let base = trace_base();
-        let count = unsafe { base.add(4).read_volatile() } as usize;
-        let next = unsafe { base.add(5).read_volatile() } as usize;
-        if count <= 48 && next < 48 {
-            for (offset, byte) in row.into_iter().enumerate() {
-                unsafe {
-                    base.add(8 + next * 74 + offset).write_volatile(byte);
-                }
-            }
-            unsafe {
-                base.add(4).write_volatile((count + 1).min(48) as u8);
-                base.add(5).write_volatile(((next + 1) % 48) as u8);
-            }
-        }
-    });
-}
-
-#[cfg(feature = "usb-trace")]
-#[unsafe(link_section = ".uninit.usb_trace")]
-static mut TRACE_RAM: core::mem::MaybeUninit<[u8; 0x4000 + 8 + 48 * 74]> =
-    core::mem::MaybeUninit::uninit();
-
-#[cfg(feature = "usb-trace")]
-fn trace_base() -> *mut u8 {
-    // Reserve the low 16 KiB ahead of the trace: the observed bootloader
-    // stack occupies 0x20003590..0x20003993. This debug-only storage is
-    // retained by cortex-m-rt across external resets, never assumed valid
-    // without the header check below.
-    unsafe { core::ptr::addr_of_mut!(TRACE_RAM).cast::<u8>().add(0x4000) }
-}
-
-/// Starts a fresh RAM-only diagnostic trace (feature `usb-trace`).
-#[cfg(feature = "usb-trace")]
-pub fn start_diagnostic_trace() {
-    critical_section::with(|_| unsafe {
-        let base = trace_base();
-        for (offset, byte) in b"USB9\0\0\0\0".iter().enumerate() {
-            base.add(offset).write_volatile(*byte);
-        }
-    });
-}
-
-/// Reads an optional RAM-only USB diagnostic record; never uses a UART.
-/// Layout: tag, data length, four little-endian registers (INTSTS0,
-/// CFIFOSEL, CFIFOCTR, DCPCTR), and up to 64 data bytes.
-#[cfg(feature = "usb-trace")]
-pub fn diagnostic_trace(index: usize) -> Option<[u8; 74]> {
-    critical_section::with(|_| unsafe {
-        let base = trace_base();
-        for (offset, byte) in b"USB9".iter().enumerate() {
-            if base.add(offset).read_volatile() != *byte {
-                return None;
-            }
-        }
-        let count = usize::from(base.add(4).read_volatile());
-        let next = usize::from(base.add(5).read_volatile());
-        if count > 48 || index >= count || next >= 48 {
-            return None;
-        }
-        let slot = if count == 48 {
-            (next + index) % 48
-        } else {
-            index
-        };
-        let mut row = [0; 74];
-        for (offset, byte) in row.iter_mut().enumerate() {
-            *byte = base.add(8 + slot * 74 + offset).read_volatile();
-        }
-        (row[1] <= 64
-            && matches!(
-                row[0],
-                b'S' | b'W' | b'F' | b'E' | b'T' | b'P' | b'R' | b'O'
-            ))
-        .then_some(row)
-    })
-}
-
 /// The USBFS as a `usb_device` bus.
 ///
 /// Construct with [`Usbfs::new`] (which runs the hardware bring-up) and
@@ -213,8 +115,6 @@ pub struct Usbfs {
     auto_address: Cell<bool>,
     /// Successfully queued IN packets awaiting a completion report.
     in_pending: Cell<u16>,
-    #[cfg(feature = "usb-trace")]
-    last_trace_state: Cell<u16>,
 }
 
 impl Usbfs {
@@ -291,8 +191,6 @@ impl Usbfs {
             status_out_ready: Cell::new(false),
             auto_address: Cell::new(false),
             in_pending: Cell::new(0),
-            #[cfg(feature = "usb-trace")]
-            last_trace_state: Cell::new(0xFFFF),
         }
     }
 
@@ -650,8 +548,6 @@ impl Usbfs {
         let pipe = self.pipe_of(ep_addr)?;
         let regs = Self::regs();
         if pipe == 0 {
-            #[cfg(feature = "usb-trace")]
-            trace(b'W', buf);
             let ctsq = regs.intsts0.read().bits() & 7;
             // After software consumes the final control-OUT data packet,
             // CTSQ may still be 3: the host's next IN token advances it to
@@ -680,13 +576,7 @@ impl Usbfs {
                 return Err(UsbError::BufferOverflow);
             }
             let selected = self.select_cfifo(true);
-            #[cfg(feature = "usb-trace")]
-            if selected.is_err() {
-                trace(b'E', &[]);
-            }
             selected?;
-            #[cfg(feature = "usb-trace")]
-            trace(b'F', &[]);
             unsafe {
                 CFIFOCTR.write_volatile(CTR_BCLR); // drop any stale content
             }
@@ -701,8 +591,6 @@ impl Usbfs {
                     break;
                 }
             }
-            #[cfg(feature = "usb-trace")]
-            trace(b'R', &[u8::from(ready)]);
             if !ready {
                 return Err(UsbError::WouldBlock);
             }
@@ -724,8 +612,6 @@ impl Usbfs {
                     .modify(|_, w| w.bits(regs.dcpctr.read().bits() & !0b11 | PID_BUF));
             }
             self.in_pending.set(self.in_pending.get() | 1);
-            #[cfg(feature = "usb-trace")]
-            trace(b'T', &[]);
             Ok(buf.len())
         } else {
             let ctr = self.pipe_ctr(pipe);
@@ -799,8 +685,6 @@ impl Usbfs {
                     CFIFOCTR.write_volatile(CTR_BCLR);
                 }
                 self.clear_pipe_status(0x0001, 0x0001);
-                #[cfg(feature = "usb-trace")]
-                trace(b'S', &buf[..8]);
                 return Ok(8);
             }
             if self.status_out_ready.replace(false) {
@@ -816,8 +700,6 @@ impl Usbfs {
             }
             self.clear_pipe_status(0x0001, 0x0000); // §27.2.15 note 2: before FIFO access
             let len = self.fifo_read(CFIFO, CFIFOCTR, buf);
-            #[cfg(feature = "usb-trace")]
-            trace(b'O', &buf[..len]);
             Ok(len)
         } else {
             if regs.brdysts.read().bits() & (1 << pipe) == 0 {
@@ -951,21 +833,6 @@ impl Usbfs {
 
         let raw_brdy = regs.brdysts.read().bits();
         let raw_bemp = regs.bempsts.read().bits();
-        #[cfg(feature = "usb-trace")]
-        {
-            let state = (i0 & 0x7F) | ((raw_brdy & 1) << 8) | ((raw_bemp & 1) << 9);
-            if self.last_trace_state.replace(state) != state {
-                trace(
-                    b'P',
-                    &[
-                        raw_brdy as u8,
-                        (raw_brdy >> 8) as u8,
-                        raw_bemp as u8,
-                        (raw_bemp >> 8) as u8,
-                    ],
-                );
-            }
-        }
         // ep_out: only allocated OUT pipes (IN pipes signal completion
         // through BEMP); ep_in_complete: allocated IN pipes.
         let (out_mask, in_mask) = self.direction_masks();

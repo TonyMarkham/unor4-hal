@@ -84,8 +84,6 @@ pub struct UartIrq<S = ra4m1::SCI2, const RX: usize = 256, const TX: usize = 128
     overflowed: AtomicU32,
     /// Receive error events (ORER/FER/PER) seen by the ERI handler.
     errored: AtomicU32,
-    /// Diagnostic: TXI handler invocations (slice 5 debugging).
-    txi_events: AtomicU32,
     _engine: PhantomData<*const S>,
 }
 
@@ -109,7 +107,6 @@ where
             tx: Ring::new(),
             overflowed: AtomicU32::new(0),
             errored: AtomicU32::new(0),
-            txi_events: AtomicU32::new(0),
             _engine: PhantomData,
         }
     }
@@ -213,7 +210,6 @@ where
     /// write per request, not a polling
     /// loop that waits for a byte to finish inside the ISR.
     fn isr_txi(&self) {
-        self.txi_events.fetch_add(1, Ordering::Relaxed);
         cs::with(|_| {
             let sci = unsafe { &*S::PTR };
             match self.tx.pop() {
@@ -317,11 +313,6 @@ where
     /// Receive error events (ORER/FER/PER) handled so far.
     pub fn errored(&self) -> u32 {
         self.errored.load(Ordering::Relaxed)
-    }
-
-    /// Diagnostic: TXI handler invocations so far (slice 5 debugging).
-    pub fn txi_events(&self) -> u32 {
-        self.txi_events.load(Ordering::Relaxed)
     }
 
     /// Whether the transmit path is fully idle (ring empty + TEND).

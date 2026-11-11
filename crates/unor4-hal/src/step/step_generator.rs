@@ -1497,8 +1497,9 @@ impl StepGenerator {
     }
 
     /// The pulse count expected at the next tick: from the latest tick's
-    /// schedule ([`Schedule::ends_in`] with the measured
-    /// [`PULSE_END_LATCH_DELAY`]), or the latched count when stopped
+    /// schedule ([`Schedule::ends_in`], with a pulse's end reaching the tick
+    /// latch 2 counts after the low time, measured on the board), or the
+    /// latched count when stopped
     /// throughout. `None` when it cannot be exact: no tick reported yet, a
     /// [`StepGenerator::run`] / [`StepGenerator::stop`] since the latest
     /// report, or an unknown schedule. A change queued for the next tick
@@ -1513,104 +1514,6 @@ impl StepGenerator {
         let schedule = self.schedule?;
         let ends = schedule.ends_in(self.low_counts + PULSE_END_LATCH_DELAY, self.tick_counts);
         Some(self.last_pulses.wrapping_add(ends))
-    }
-
-    /// Diagnostic — measures the tick DTC's latency: for `ticks` ticks, arms a
-    /// one-word transfer that copies the STEP channel's counter into RAM at the tick,
-    /// and compares the copy with the phase captured at the same tick.
-    /// Returns `(min, max, samples)` of the difference in PCLKD counts: how
-    /// long after the tick instant the DTC's write lands. Run it with the
-    /// generator running at a period much longer than the latency (1 000/s
-    /// is 48 000 counts), so the counter cannot wrap in between; samples
-    /// where it did are left out. Cancels any queued change.
-    pub fn dtc_latency_probe(&mut self, ticks: u32) -> (u32, u32, u32) {
-        self.pending = None;
-        let counter = &self.step.gtcnt as *const _ as u32;
-        let probe = addr_of!(DTC_READBACK) as u32;
-        let (mut min, mut max, mut samples) = (u32::MAX, 0u32, 0u32);
-        while self.poll_tick().is_none() {}
-        for _ in 0..ticks {
-            let probe_record = record(MRA_WORD_FIXED, 0, counter, probe, 1, 1);
-            critical_section::with(|_| self.tick_dtc.arm(&[probe_record]));
-            let report = loop {
-                if let Some(report) = self.poll_tick() {
-                    break report;
-                }
-            };
-            let copied = unsafe { read_volatile(addr_of!(DTC_READBACK)) };
-            if self.tick_dtc.armed() {
-                self.tick_dtc.disarm();
-                continue;
-            }
-            if copied >= report.phase_counts {
-                let delay = copied - report.phase_counts;
-                min = min.min(delay);
-                max = max.max(delay);
-                samples += 1;
-            }
-        }
-        (min, max, samples)
-    }
-
-    /// Diagnostic — measures a DTC delay record: for `ticks` ticks, arms a
-    /// chain that reads the STEP channel's counter, runs one block transfer of
-    /// `words` words (source and destination fixed, RAM to RAM; `words` 1–
-    /// 256), and reads the counter again. Returns `(min, max, samples)` of
-    /// the two reads' difference in PCLKD counts — how long the delay record
-    /// holds the chain up. Run at 1 000/s, like
-    /// [`StepGenerator::dtc_latency_probe`].
-    pub fn dtc_delay_probe(&mut self, words: u16, ticks: u32) -> (u32, u32, u32) {
-        static mut READS: [u32; 2] = [0; 2];
-        static mut SCRATCH: u32 = 0;
-        self.pending = None;
-        let counter = &self.step.gtcnt as *const _ as u32;
-        let (first, second) = unsafe { (addr_of!(READS[0]) as u32, addr_of!(READS[1]) as u32) };
-        let scratch = addr_of!(SCRATCH) as u32;
-        // Block mode, word, source fixed (MRA = 10_10_00_00b); destination
-        // fixed, chained (MRB = CHNE); CRAH = CRAL = words (0 = 256).
-        let block = (words & 0xFF) as u8;
-        let records = [
-            record(MRA_WORD_FIXED, MRB_CHAIN, counter, first, 1, 1),
-            record(
-                0b1010_0000,
-                MRB_CHAIN,
-                scratch,
-                scratch,
-                (u16::from(block) << 8) | u16::from(block),
-                1,
-            ),
-            record(MRA_WORD_FIXED, 0, counter, second, 1, 1),
-        ];
-        let (mut min, mut max, mut samples) = (u32::MAX, 0u32, 0u32);
-        while self.poll_tick().is_none() {}
-        for _ in 0..ticks {
-            critical_section::with(|_| self.tick_dtc.arm(&records));
-            while self.poll_tick().is_none() {}
-            if self.tick_dtc.armed() {
-                self.tick_dtc.disarm();
-                continue;
-            }
-            let (a, b) = unsafe {
-                (
-                    read_volatile(addr_of!(READS[0])),
-                    read_volatile(addr_of!(READS[1])),
-                )
-            };
-            if b >= a {
-                min = min.min(b - a);
-                max = max.max(b - a);
-                samples += 1;
-            }
-        }
-        (min, max, samples)
-    }
-
-    /// Where the counter is within the current period, in PCLKD counts
-    /// (`GTCNT`): below [`StepGenerator::low_counts`] the pin is LOW (a
-    /// pulse), from there to the period's end it is HIGH. Diagnostic — the
-    /// validation pair uses it to time stops inside chosen phases.
-    pub fn phase_counts(&self) -> u32 {
-        self.step.gtcnt.read().bits()
     }
 }
 

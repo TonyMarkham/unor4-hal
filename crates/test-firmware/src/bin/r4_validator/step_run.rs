@@ -6,13 +6,13 @@
 use crate::{body::Body, requests::argument};
 
 use embedded_hal::digital::PinState;
-use ra4m1::{GPT162, GPT164, GPT165};
+use ra4m1::{GPT162, GPT164, GPT165, GPT320};
 use unor4_hal::{
     gpio::pin_map::{self, D4, D5},
     step::{
         CounterBuilder, CounterSetup, DirPinBuilder, DirSetup, NoDivider, PulPinBuilder, PulSetup,
         StepError, StepGenerator, StepGeneratorBuilder, StepSetup, TickBuilder, TickReport,
-        TickSetup, pulses_in_tick,
+        TickSetup,
     },
 };
 
@@ -150,8 +150,8 @@ pub(crate) fn tick_run(req: &[u8], stepper: &mut Option<StepGenerator>, ticks: u
     let (mut predicted_from, mut first_miss): (u32, Option<(u32, u32)>) = (0, None);
     // Diagnostic: the same prediction with each pulse's end taken to reach
     // the latch 1–4 counts after GTCCRB (`low + d`), counted side by side
-    // with the HAL's (which uses d = PULSE_END_LATCH_DELAY = 2, the value
-    // these counts measured: s2 must equal the HAL's mismatches, 0).
+    // with the HAL's (which uses d = 2, the value these counts measured:
+    // s2 must equal the HAL's mismatches, 0).
     let mut shifted: [Option<u32>; 4] = [None; 4];
     let mut shifted_misses = [0u32; 4];
     let (low, tick_counts) = (stepper.low_counts(), stepper.tick_counts());
@@ -192,7 +192,7 @@ pub(crate) fn tick_run(req: &[u8], stepper: &mut Option<StepGenerator>, ticks: u
         prediction = stepper.predicted_pulses();
         for (shift, slot) in (1u32..).zip(shifted.iter_mut()) {
             *slot = prediction.map(|_| {
-                report.pulses.wrapping_add(pulses_in_tick(
+                report.pulses.wrapping_add(ends_in_tick(
                     stepper.period_counts(),
                     low + shift,
                     report.phase_counts,
@@ -761,27 +761,36 @@ pub(crate) fn push_position(body: &mut Body, change: i64) {
     }
 }
 
-/// The `X` request (Slice 11 step 5a): the tick DTC's write latency —
-/// [`StepGenerator::dtc_latency_probe`] over 500 ticks at 1 000/s. Reply
-/// `X <min> <max> <samples>` in PCLKD counts after the tick instant.
-pub(crate) fn dtc_probe(req: &[u8], stepper: &mut Option<StepGenerator>) -> Body {
-    let Some(stepper) = stepper.as_mut() else {
-        return Body::new(b"X NA");
-    };
-    stepper.stop();
-    if stepper.run(1_000).is_err() {
-        return Body::new(b"X ERR");
+/// The number of pulse ends that reach the tick latch between one tick
+/// and the next: the STEP counter is `phase` counts into a `period`-count
+/// period at the first tick, a pulse's end reaches the latch at counter
+/// `end`, and a tick is `tick` counts. Pulse `k` reaches it at offset
+/// `end − phase + k × period`; the ends counted are those at offsets
+/// `0 ≤ t < tick`. The validator's own closed form, independent of the
+/// HAL's schedule.
+fn ends_in_tick(period: u32, end: u32, phase: u32, tick: u32) -> u32 {
+    if period == 0 || tick == 0 {
+        return 0;
     }
-    let words = argument(req, 0);
-    let (min, max, samples) = if words == 0 {
-        stepper.dtc_latency_probe(500)
-    } else {
-        stepper.dtc_delay_probe(words.min(256) as u16, 500)
-    };
-    stepper.stop();
-    let mut body = Body::new(b"X");
-    body.num(min).num(max).num(samples);
-    body
+    let (period, first, tick) = (
+        i64::from(period),
+        i64::from(end) - i64::from(phase),
+        i64::from(tick),
+    );
+    let lowest = -(first.div_euclid(period));
+    let highest = (tick - 1 - first).div_euclid(period);
+    (highest - lowest + 1).max(0) as u32
+}
+
+/// Where the STEP timer (GPT320, the main setup's D4) is within its
+/// current period, in PCLKD counts (`GTCNT`): below the low time the pin
+/// is LOW (a pulse), from there to the period's end it is HIGH. Read from
+/// the PAC: the validator observes the channel from outside, so the HAL
+/// keeps no public hook for it.
+fn step_phase() -> u32 {
+    // A read of the counter only; the generator owns GPT320 and nothing
+    // here writes it.
+    unsafe { (*GPT320::PTR).gtcnt.read().bits() }
 }
 
 /// The `Z<zone>` request: wait until the running generator's counter is in
@@ -812,7 +821,7 @@ pub(crate) fn stop_in_zone(req: &[u8], stepper: &mut Option<StepGenerator>) -> B
     // Interrupts off between seeing the zone and calling stop().
     let phase = cortex_m::interrupt::free(|_| {
         loop {
-            let phase = stepper.phase_counts();
+            let phase = step_phase();
             if (from..=to).contains(&phase) {
                 stepper.stop();
                 break Some(phase);
@@ -870,7 +879,7 @@ pub(crate) fn stop_burst(req: &[u8], stepper: &mut Option<StepGenerator>) -> Bod
         seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         cortex_m::asm::delay(seed >> 21);
         stepper.stop();
-        let frozen = stepper.phase_counts();
+        let frozen = step_phase();
         // 25 µs before the next start: without it the next cycle's first
         // pulse can fall ~13 µs after this cycle's last, closer than the
         // R3's capture interrupt resolves when its own timer interrupt is

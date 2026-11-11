@@ -25,12 +25,12 @@ pub const TICK_TPCS: u8 = 0b001;
 pub const TICK_DIVISOR: u32 = 4;
 
 /// Whole PCLKD/`divider` counts in `ns`, rounded down.
-pub const fn counts_floor(ns: u32, divider: u32) -> u64 {
+pub(crate) const fn counts_floor(ns: u32, divider: u32) -> u64 {
     ns as u64 * PCLKD_HZ as u64 / (1_000_000_000 * divider as u64)
 }
 
 /// PCLKD/`divider` counts covering `ns`, rounded up, so a minimum time is
 /// never undershot.
-pub const fn counts_ceil(ns: u32, divider: u32) -> u64 {
+pub(crate) const fn counts_ceil(ns: u32, divider: u32) -> u64 {
     (ns as u64 * PCLKD_HZ as u64).div_ceil(1_000_000_000 * divider as u64)
 }

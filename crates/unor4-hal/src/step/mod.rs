@@ -262,7 +262,7 @@
 //!   to the next tick; the counter's `GTST.TCFA` flags each capture
 //!   (§22.4.1).
 //! - **Latch delay (measured, not from the manual).** A pulse end reaches
-//!   the tick latch [`PULSE_END_LATCH_DELAY`] = 2 PCLKD counts after the
+//!   the tick latch 2 PCLKD counts after the
 //!   STEP channel reaches its compare value, as seen through its own
 //!   captured phase. Found on the board 2026-11-03 with STEP on GPT320,
 //!   counter GPT321 (Validation.md, Slice 11 step 4): over 27 runs, six of them
@@ -318,7 +318,6 @@ mod vector_table;
 // ---------------------------------------------------------------------------------------------- //
 
 pub use crate::step::{
-    calc_step_period::{calc_step_period, ns_to_counts},
     counter_builder::CounterBuilder,
     counter_setup::CounterSetup,
     dir_pin_builder::DirPinBuilder,
@@ -330,15 +329,11 @@ pub use crate::step::{
     ena_part::EnaPart,
     ena_pin_builder::EnaPinBuilder,
     ena_setup::EnaSetup,
-    limits::{
-        EDGE_MARGIN, MAX_REVERSAL_LOW, PCLKD_HZ, TICK_DIVISOR, TICK_TPCS, TICK_US, counts_ceil,
-        counts_floor,
-    },
+    limits::{EDGE_MARGIN, MAX_REVERSAL_LOW, PCLKD_HZ, TICK_DIVISOR, TICK_TPCS, TICK_US},
     no_divider::NoDivider,
     no_ena::NoEna,
     pul_pin_builder::PulPinBuilder,
     pul_setup::PulSetup,
-    pulses_in_tick::{PULSE_END_LATCH_DELAY, pulses_in_tick},
     schedule::Schedule,
     step_error::StepError,
     step_generator::StepGenerator,
@@ -355,12 +350,15 @@ pub use crate::step::{
 // ---------------------------------------------------------------------------------------------- //
 
 pub(crate) use crate::step::{
+    calc_step_period::calc_step_period,
     check_count_target::{check_count_target, count_compare_value},
     ena::Ena,
     first_cycle::first_cycle,
     hardware::{GptRegs, Hardware},
     lead_passed::lead_passed,
+    limits::{counts_ceil, counts_floor},
     pending::Pending,
+    pulses_in_tick::PULSE_END_LATCH_DELAY,
     recovery::{idle_expired, missed_reversal_new_pulses, resync_schedule},
     start_lead::start_lead,
     tick_dtc::TickDtc,
@@ -369,4 +367,4 @@ pub(crate) use crate::step::{
 };
 
 #[cfg(test)]
-pub(crate) use crate::step::recovery::RESYNC_SLACK;
+pub(crate) use crate::step::{pulses_in_tick::pulses_in_tick, recovery::RESYNC_SLACK};

@@ -105,4 +105,5 @@ taking the USB port disconnects the bridge (explicit, documented API).
 
 ## License
 
-MIT — see [LICENSE.md](https://github.com/TonyMarkham/unor4-hal/blob/main/LICENSE.md).
+MIT. The full text ships with the crate as `LICENSE.md`, and is also in
+the repository's [LICENSE.md](https://github.com/TonyMarkham/unor4-hal/blob/main/LICENSE.md).

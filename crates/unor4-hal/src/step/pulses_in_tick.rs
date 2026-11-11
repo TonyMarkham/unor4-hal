@@ -1,11 +1,12 @@
-//! How many pulses end within one tick (host-tested).
+//! When a pulse end reaches the tick latch, and (host tests only) how
+//! many pulse ends land in one tick.
 
 /// PCLKD counts between GPT320 reaching `GTCCRB` (a pulse's end) and that
 /// end being included in a tick latch, relative to the phase GPT320 itself
 /// captures at the tick. **Measured on the board, not from the manual**
 /// (Validation.md, Slice 11 step 4, 2026-11-03): only this value predicted every
 /// tick in 27 runs, six of which swept every phase; 0, 1, 3 and 4 failed.
-pub const PULSE_END_LATCH_DELAY: u32 = 2;
+pub(crate) const PULSE_END_LATCH_DELAY: u32 = 2;
 
 /// The number of pulse ends that land between one tick latch and the next,
 /// given the step counter's `phase` at the first tick (PCLKD counts into a
@@ -20,8 +21,11 @@ pub const PULSE_END_LATCH_DELAY: u32 = 2;
 /// ends counted are those with `0 ≤ t < tick`; the same rule at both
 /// instants makes consecutive ticks partition the pulse ends exactly.
 ///
-/// Returns 0 for a zero period or tick. Integer maths only (`i64`).
-pub fn pulses_in_tick(period: u32, end: u32, phase: u32, tick: u32) -> u32 {
+/// Returns 0 for a zero period or tick. Integer maths only (`i64`). A
+/// closed-form reference for [`crate::step::Schedule::ends_in`] in the host
+/// tests; the generator itself uses the schedule.
+#[cfg(test)]
+pub(crate) fn pulses_in_tick(period: u32, end: u32, phase: u32, tick: u32) -> u32 {
     if period == 0 || tick == 0 {
         return 0;
     }

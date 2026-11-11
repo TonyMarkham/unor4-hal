@@ -16,7 +16,6 @@ minima            = ["unor4-hal/minima"]
 wifi              = ["unor4-hal/wifi"]
 uart-irq          = ["unor4-hal/uart-irq"]
 usb               = ["unor4-hal/usb"]
-usb-trace         = ["usb", "unor4-hal/usb-trace"]
 
 
 [dependencies]

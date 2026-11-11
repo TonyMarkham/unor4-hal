@@ -2,7 +2,7 @@
 //! (waveform, start, stop) are target code — proven by Slice 11 step 2's
 //! hardware run (Validation.md, `S11 step`), not here.
 
-use crate::step::{Schedule, StepError, calc_step_period, ns_to_counts, pulses_in_tick};
+use crate::step::{Schedule, StepError, calc_step_period, counts_ceil, pulses_in_tick};
 
 /// Brute force for `Schedule`: lists every pulse start (offset from the
 /// tick instant, possibly negative for the current period's) up to `span`.
@@ -42,8 +42,8 @@ fn given_the_rig_pulse_shape_when_converted_then_counts_are_240_and_120() {
     // given: 5 000 ns low, 2 500 ns minimum high at 48 MHz
     // when: converted to counts
     // then: exact multiples of 20.83 ns
-    assert_eq!(ns_to_counts(5_000, PCLKD), 240);
-    assert_eq!(ns_to_counts(2_500, PCLKD), 120);
+    assert_eq!(counts_ceil(5_000, 1), 240);
+    assert_eq!(counts_ceil(2_500, 1), 120);
 }
 
 #[test]
@@ -51,8 +51,8 @@ fn given_a_time_between_counts_when_converted_then_it_rounds_up() {
     // given: 30 ns, between one count (20.8 ns) and two
     // when: converted
     // then: two counts — a minimum time is never undershot
-    assert_eq!(ns_to_counts(30, PCLKD), 2);
-    assert_eq!(ns_to_counts(0, PCLKD), 0);
+    assert_eq!(counts_ceil(30, 1), 2);
+    assert_eq!(counts_ceil(0, 1), 0);
 }
 
 #[test]

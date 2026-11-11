@@ -2,13 +2,6 @@
 
 use crate::step::{StepError, StepResult};
 
-/// Nanoseconds → whole PCLKD counts, rounded **up** so a minimum time is
-/// never undershot. `u64` throughout: `ns × pclkd` reaches ~2 × 10¹⁷ for
-/// the largest `u32` inputs.
-pub fn ns_to_counts(ns: u32, pclkd_hz: u32) -> u64 {
-    (u64::from(ns) * u64::from(pclkd_hz)).div_ceil(1_000_000_000)
-}
-
 /// The period, in PCLKD counts, that delivers `rate` pulses/s: the nearest
 /// whole count, `round(pclkd / rate)`. The delivered rate is then
 /// `pclkd / counts`, off by at most `rate / (2 × pclkd)` relative — half a
@@ -22,7 +15,7 @@ pub fn ns_to_counts(ns: u32, pclkd_hz: u32) -> u64 {
 /// # Errors
 /// [`StepError::ZeroRate`] for `rate == 0`; [`StepError::RateTooHigh`]
 /// when the rounded period is shorter than the floor.
-pub fn calc_step_period(
+pub(crate) fn calc_step_period(
     pclkd_hz: u32,
     rate: u32,
     low_counts: u32,

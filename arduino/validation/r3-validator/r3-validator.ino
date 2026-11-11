@@ -97,7 +97,6 @@
 //   T  S12 wake: the R4's wake timer (GPT167): its own lengths and
 //          behaviour checks (t1, t2), then two waits marked on D3 (t3),
 //          timed here on INT1
-//   x y    DTC timing probes (debug, no verdict)
 // Both parts:
 //   s      R4 status: USB state, taken flag, uptime, SCI2 ov/er
 //   !      single RESET pulse          @  double RESET pulse (bootloader)
@@ -2123,21 +2122,6 @@ void loop() {
     case 'E': checkExternalPullUp(); break;
 #elif R3_PART == 2
     case 'd': checkStep(); break;
-    case 'x':
-      Serial.print(F("DTC "));
-      Serial.println(request("X", 5000) ? reply : "no reply from R4");
-      break;
-    case 'y': {
-      // DTC delay records: 32, 64, 96, 128 words.
-      const char *bodies[4] = {"X32", "X64", "X96", "X128"};
-      for (uint8_t i = 0; i < 4; i++) {
-        Serial.print(F("DTC DELAY "));
-        Serial.print(bodies[i] + 1);
-        Serial.print(F(" "));
-        Serial.println(request(bodies[i], 5000) ? reply : "no reply from R4");
-      }
-      break;
-    }
     case 'v': checkElc(); break;
     case 'q': checkCount(); break;
     case 'j': checkTick(); break;

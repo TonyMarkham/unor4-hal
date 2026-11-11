@@ -35,4 +35,10 @@ uart-irq           = ["dep:embedded-hal-nb", "dep:embedded-io", "dep:nb"]
 # USB device (Slice 9): the USBFS `usb-device` bus adapter + CDC-ACM
 # wrapper. Opt-in; see `usb/mod.rs` for the mux rules.
 usb                = ["dep:usb-device", "dep:usbd-serial", "dep:embedded-io"]
-usb-trace          = ["usb"]
+
+# docs.rs: document the opt-in drivers too (default `wifi` stays on;
+# `all-features` would turn on `minima` as well, a compile error).
+# `targets = []` builds only the default target, x86_64-unknown-linux-gnu.
+[package.metadata.docs.rs]
+features           = ["usb", "uart-irq"]
+targets            = []

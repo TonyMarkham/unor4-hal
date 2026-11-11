@@ -55,9 +55,9 @@ impl Schedule {
 
     /// How many pulse ends land in the `tick` counts that follow, where a
     /// pulse that started at counter 0 ends at counter `end` (for the tick
-    /// latch: the low time plus [`crate::step::PULSE_END_LATCH_DELAY`]). An
+    /// latch: the low time plus 2 counts, measured on the board). An
     /// end at offset 0 counts here, one at offset `tick` in the next tick
-    /// (the latch rule of [`crate::step::pulses_in_tick`]).
+    /// (the same latch rule at both tick instants).
     pub fn ends_in(self, end: u32, tick: u32) -> u32 {
         let (end, tick) = (i64::from(end), i64::from(tick));
         let in_tick = |offset: i64| (0..tick).contains(&offset);

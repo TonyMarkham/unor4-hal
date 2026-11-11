@@ -63,7 +63,6 @@
 //! | `N` | 11 (step 3) | `N <pulses>`: the step generator's hardware pulse count (GPT321), wrapping |
 //! | `Y<rate>` | 11 (step 4) | `Y <checked> <mismatches> <skipped> <dmin> <dmax> <span> [<phase> <diff+10>]`: 60 ticks at `rate`, each latched count against the previous tick's prediction; the first mismatch's details if any |
 //! | `V<rate>` | 11 (step 4) | as `Y`, over 2 500 ticks (5 s) |
-//! | `X` | 11 (step 5a) | `X <min> <max> <samples>`: the tick DTC's write latency in PCLKD counts over 500 ticks at 1 000/s |
 //! | `W<mode>` | 11 (step 5b) | `W <ticks> <applied> <count misses> <phase misses> <queue errors> <reversals> <in flight> <old first> <violations> <dir min> <dir max> [M]<position change>`: reversals at every tick (mode 1), a ramp through zero (2), from stopped (3); every reversal checked against the DIR rule |
 //! | `H<cycles>` | 11 (stop) | `H <cycles> <cut> <end> <between> <cut max> <between max> <period> <pulses>`: start/stop cycles at 55 733/s stopped at random phases; where each stop froze the counter |
 //! | `J` | 11 (wake) | `J <ticks> <applied> <count misses> <phase misses> <queue errors> <skipped> <wakes> <wake max> <done max>`: 2 500 ticks of random fast rates with the CPU asleep in `WFI`, woken by the tick |
@@ -372,8 +371,6 @@ fn main() -> ! {
             #[cfg(feature = "wifi")]
             b'V' => step_run::tick_run(req, &mut stepper, step_run::TICK_STRESS_TICKS),
             #[cfg(feature = "wifi")]
-            b'X' => step_run::dtc_probe(req, &mut stepper),
-            #[cfg(feature = "wifi")]
             b'Q' => step_run::queue_run(req, &mut stepper),
             #[cfg(feature = "wifi")]
             b'O' => step_run::scenario_run(&mut stepper),
@@ -402,7 +399,7 @@ fn main() -> ! {
             #[cfg(feature = "wifi")]
             b't' => wake_check::wake_request(req, &mut wake, &reference, &mut d3),
             #[cfg(feature = "minima")]
-            b'T' | b'Z' | b'N' | b'Y' | b'V' | b'X' | b'Q' | b'O' | b'W' | b'H' | b'J' | b'k'
+            b'T' | b'Z' | b'N' | b'Y' | b'V' | b'Q' | b'O' | b'W' | b'H' | b'J' | b'k'
             | b'd' | b'n' | b'w' | b'e' | b'c' | b's' | b'b' | b't' => Body::new(b"T NA"),
             b'm' => delay_probe::delay_probe(&mut clock),
             b'K' => boot_log.reply(flash.as_ref().ok()),

@@ -163,6 +163,81 @@ the user guide).
 
 ## Current grants
 
+- **2026-11-11 — one commit by the agent (amends rule 6; expired on
+  completion).** Owner, given in chat: "commit, no byline". Scope: one
+  commit of the working tree on the current branch, with no
+  `Co-Authored-By` line. No push, tag or release.
+
+- **2026-11-11 — every public validation/debug item out of the public
+  API, written by the agent (expired on completion, same day: 33/33 over
+  three sessions, recorded in `Validation.md`).** Owner, given
+  in chat: "Find ALL pub validation and fix, STOP stopping short", after
+  `UartIrq::txi_events` and `StepGenerator::phase_counts` were found
+  public. Scope: find every public item in `crates/unor4-hal` that exists
+  only for testing, validation or debugging, and take it out of the
+  public API; the validation pair and host tests that use them, moved to
+  another way of observing the same thing; the host matrix, firmware
+  builds and bench runs that prove it; the docs (README, crate README,
+  CHANGELOG, `Validation.md`). `Cargo.toml` only for the debug-only
+  `usb-trace` feature lines (HAL and test-firmware), which "fix" requires;
+  no other manifest changes, no `rust-toolchain.toml`, no git chores.
+
+- **2026-11-11 — Publishing.md's two open items, written by the agent.**
+  Owner,
+  given in chat: "You can fix issues 1 and 2, right", for Publishing.md's
+  "Before 0.2.0" table. Expired on completion, same day: both fixed,
+  33/33 over three sessions, recorded in `Validation.md`. Scope:
+  - **1:** take `StepGenerator::dtc_latency_probe` and `dtc_delay_probe`
+    out of the public API (`crates/unor4-hal/src/step`), with the
+    validation pair's manual DTC probe (`r4_validator`'s `X` request, the
+    R3 part 2 `x`/`y` commands) that calls them;
+  - **2:** audit the transitive dependency licences and word the README's
+    and this file's licence claims to match;
+  - the host matrix, firmware builds and bench re-run that check them,
+    and the docs (README, CHANGELOG, `Validation.md`, `Publishing.md`).
+
+  Excludes `Cargo.toml` / `rust-toolchain.toml` and git chores.
+
+- **2026-11-11 — `Publishing.md` update (expired on completion, same
+  day).** Owner, given in chat: "update Publishing.md", after the licence
+  file, the docs.rs table, the release checks and the CHANGELOG landed.
+  Scope: `Publishing.md` only, brought up to the repo's state. Amended,
+  owner: "If it is no longer an issue GET RID OF IT!": the "Before 0.2.0"
+  table lists open problems only.
+
+- **2026-11-11 — release-readiness runs by the agent (expired on
+  completion, same day: all passed, 33/33 over three sessions, recorded
+  in `Validation.md`).** Owner,
+  given in chat: "run the validations to prove it's ready", after the
+  crate licence file and the docs.rs table landed for 0.2.0. Scope: the
+  publish checks in `Publishing.md` (`cargo package --list`, the
+  `usb,uart-irq` doc build, `cargo publish --dry-run --allow-dirty`,
+  never a real publish), the host matrix (`just check`, `just clippy`,
+  `just test`), the firmware checks and `r4_validator` image, and the
+  three `validate all` bench sessions per `Validation.md`. No code or
+  config changes, no git chores.
+
+- **2026-11-11 — docs.rs metadata in the crate manifest (expired on
+  completion, same day: the table landed in
+  `crates/unor4-hal/Cargo.toml`; the doc build that checks it is the
+  owner's).** Owner, given in chat: "can you handle issue 3 too", meaning
+  Publishing.md's item 3. Scope: a `[package.metadata.docs.rs]` table in
+  `crates/unor4-hal/Cargo.toml` (`features = ["usb", "uart-irq"]`,
+  `targets = []`, keys checked against <https://docs.rs/about/metadata>
+  the same day), and the CHANGELOG entry. No other manifest changes, no
+  cargo runs, no git chores.
+
+- **2026-11-11 — crate licence file and crate README (expired on
+  completion, same day: `crates/unor4-hal/LICENSE.md` byte-identical to
+  the root file, the crate README's License section updated, CHANGELOG
+  Fixed entry; the `cargo package --list` check is the owner's).** Owner, given in
+  chat: "ok, fix the crate license and readme", after being told the
+  `.crate` ships no licence text (`license = "MIT"` names the licence,
+  the README only links to it). Scope: a copy of the root `LICENSE.md`
+  in `crates/unor4-hal/` so `cargo package` includes it, and the crate
+  README's License section. Excludes `Cargo.toml` /
+  `rust-toolchain.toml`, cargo runs and git chores.
+
 - **2026-11-04 — the wake timer, as agreed with cart-pole, written by the
   agent (expired on completion, same day: the record landed in
   `Validation.md`, 33/33 over three sessions).** Owner, given in chat: "Imple the feature
@@ -626,11 +701,14 @@ bootloader first.
   `rust-toolchain.toml` and proven by CI.
 - `LICENSE.md` (MIT) exists **before the first code commit** — the license
   ambiguity of the existing crate is the reason this repo exists
-  independently; don't recreate the problem. Every dependency of the
-  library and the firmware is MIT or MIT/Apache-2.0 (license-audited
-  2026-10-18), so a single MIT file covers the crate; the unpublished
-  `validate` host tool's `serialport` (MPL-2.0) is the one owner-approved
-  exception (README, Dependency licences).
+  independently; don't recreate the problem. Every crate compiled into
+  the library or the firmware is available under MIT (direct
+  dependencies audited 2026-10-18, transitive 2026-11-11), so a single
+  MIT file covers the crate. Two exceptions, both outside the compiled
+  code (README, Dependency licences): `unicode-ident`'s Unicode-3.0
+  (build time only, through `cortex-m`'s procedural macros) and the
+  unpublished `validate` host tool's `serialport` (MPL-2.0,
+  owner-approved).
 - Feature gates: `minima`/`wifi` mutually exclusive via
   `compile_error!`, `wifi` the default, `usb` opt-in.
 - The README is the user guide. Its `rust,no_run` examples are compiled

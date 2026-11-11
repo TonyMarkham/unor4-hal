@@ -1173,7 +1173,9 @@ gains `dtc`; the HAL tracks the period sequence at each tick as a
 `Schedule` (in progress, next, steady), and `predicted_pulses()` uses it.
 
 - **Measured first — the DTC's write latency:** 14–17 PCLKD counts
-  (0.29–0.35 µs) after the tick, 3 × 500 samples (R4 request `X`). The
+  (0.29–0.35 µs) after the tick, 3 × 500 samples (R4 request `X`; the
+  request and the HAL probes behind it were removed on 2026-11-11 so they
+  don't ship as public API, and are in git history). The
   written `GTPR` is always ≥ 120 counts past the counter, so the write is
   always in time.
 - **The one race, handled by observation:** when the old period ends inside
@@ -2094,6 +2096,60 @@ R3 D8 wire. R4 on COM3, R3 on COM4.
     slots, an ELC input or channel already held by the step generator, an
     input claimed twice, `Elc::link` without a claimed input, and a
     passing stepper + switch + wake timer + ELC firmware).
+
+**Witnessed on WiFi, 2026-11-11 (0.2.0 release check):** after the
+crate's `LICENSE.md` copy and docs.rs table; no code changes since
+`018b3d6`. R4 on COM3, R3 on COM4. Fresh R4 image (`just image`,
+`target/r4_validator.bin`, 107 208 bytes); R3 parts 12 076 / 24 126 /
+14 702 bytes.
+
+- **Session 1:** 18/18 run. S1 phases 20 016–20 024 µs, S9 opened after
+  226 ms, S10 44 ms / 6 ms / 0 mismatches, retention 3/3 (308 → 311).
+- **Session 2:** 11/11 run. S11 count totals R4 73 100 = R3 73 100, 0 cut
+  pulses in 10 000 stops. S11 wake R4 214 052 = R3 214 052.
+- **Session 3:** 8/8 run. S11 cancelrace 697/1 303/0, R4 14 348 = R3
+  14 348. S11 boot leads 212–216 µs, falls 36 = 36, ENA 331 counts (lead
+  240). S12 wake: wire 1 008 µs / 100 140 µs, `t1 9 0 0 12 0 1 2`, `t2 1 1
+  1 1 1 1`.
+- All 33 checks pass over the three sessions.
+- **Host and publish checks, same day:** `just check`, `just clippy`,
+  `just test` pass (0 failed); firmware `just clippy`, `build`,
+  `build-minima` pass. `cargo package --list -p unor4-hal` lists 180
+  files, `LICENSE.md` among them; `cargo doc --features usb,uart-irq` at
+  `-D warnings` passes and documents `usb` and `UartIrq`;
+  `cargo publish --dry-run --allow-dirty` passes with default features
+  and with `usb,uart-irq`.
+- **After removing the DTC probes from the public API, same day:**
+  `StepGenerator::dtc_latency_probe` / `dtc_delay_probe`, the R4's `X`
+  request and the R3 part 2 `x`/`y` commands (manual diagnostics, no
+  check used them). New R4 image (106 184 bytes); R3 part 2 23 914
+  bytes. Host matrix, firmware builds and the `usb,uart-irq` dry run pass.
+  - **Session 1:** 18/18 run. S9 opened after 227 ms, retention 3/3
+    (319 → 322).
+  - **Session 2:** 11/11 run. S11 count totals R4 73 085 = R3 73 085. S11
+    wake R4 214 052 = R3 214 052.
+  - **Session 3:** 8/8 run. S11 cancelrace 671/1 329/0, R4 14 466 = R3
+    14 466. S12 wake wire 1 008 µs / 100 136 µs.
+  - All 33 checks pass over the three sessions.
+- **After taking every test and debug hook out of the public API, same
+  day:** `StepGenerator::phase_counts`, `UartIrq::txi_events`, the
+  `usb-trace` feature and its two trace functions are gone; `pulses_in_tick`
+  is a host-test reference only; `calc_step_period`, `counts_ceil`,
+  `counts_floor` and `PULSE_END_LATCH_DELAY` are crate-private;
+  `ns_to_counts`, used by nothing, is gone (its tests check
+  `counts_ceil`). The validator reads GPT320's `GTCNT` through the PAC
+  for `S11 step`'s phase stops and `S11 count`'s stop bursts, and has its
+  own pulses-per-tick formula for `S11 tick`'s shifted predictions. New R4
+  image (106 176 bytes); R3 parts unchanged. Host matrix and firmware
+  builds pass.
+  - **Session 1:** 18/18 run. S9 opened after 227 ms, retention 3/3
+    (330 → 333).
+  - **Session 2:** 11/11 run. S11 step 50/50 stops clean (30 inside chosen
+    phases). S11 count totals R4 73 102 = R3 73 102. S11 tick 9/9 exact.
+    S11 wake R4 214 048 = R3 214 048.
+  - **Session 3:** 8/8 run. S11 cancelrace 685/1 315/0, R4 14 360 = R3
+    14 360. S12 wake wire 1 012 µs / 100 124 µs.
+  - All 33 checks pass over the three sessions.
 
 Two earlier runs showed an S6 reply of 7 bytes with no `OK` (the first run,
 before the hex dump existed), and an SCI2 `er=235` total. That total came

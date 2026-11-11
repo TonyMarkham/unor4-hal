@@ -1098,10 +1098,11 @@ MIT — see [LICENSE.md](LICENSE.md).
 
 ### Dependency licences
 
-Every dependency is licence-audited before it is added. The library and the
-firmware use only MIT or MIT/Apache-2.0 crates; the one exception is the
-unpublished host tool. Versions and licences below are as `cargo metadata`
-resolves them (2026-11-03).
+Every direct dependency is licence-audited before it is added; the table
+lists them, with versions and licences as `cargo metadata` resolves them
+(2026-11-03). Every crate compiled into the library or a firmware image
+is available under MIT; the exceptions below are a build-time tool and
+the unpublished host tool.
 
 | Crate | Version | Licence | Used by |
 | --- | --- | --- | --- |
@@ -1119,6 +1120,17 @@ resolves them (2026-11-03).
 | `clap` | 4.6.7 | MIT OR Apache-2.0 | `validate` host tool |
 | `regex` | 1.13.1 | MIT OR Apache-2.0 | `validate` host tool |
 | `serialport` | 4.10.1 | **MPL-2.0** | `validate` host tool only — **owner-approved exception** (2026-10-20): the tool is `publish = false` and never ships in the library or a firmware image |
+
+The transitive dependencies were audited on 2026-11-11 with `cargo tree
+-e normal,build --format '{p} {l}'` (library with `usb,uart-irq`, the
+firmware for the thumb target, the host tool). Every one offers MIT, alone
+or as a choice (`MIT OR Apache-2.0`, `MIT/Apache-2.0`, `Unlicense OR MIT`
+for `byteorder`, `memchr`, `aho-corasick`), except:
+
+| Crate | Version | Licence | Pulled in by |
+| --- | --- | --- | --- |
+| `unicode-ident` | 1.0.27 | (MIT OR Apache-2.0) **AND Unicode-3.0** | `proc-macro2` and `syn`, for `cortex-m`'s procedural macros (`cortex-m-macros`, `cortex-m-rt-macros`). A build-time dependency of the compiler only: procedural macros run on the host and are not linked into the library or a firmware image. Unicode-3.0 is a permissive licence for Unicode's data tables. |
+| `serialport` | 4.10.1 | MPL-2.0 | the host tool, above |
 
 ### Minimum Rust version
 
